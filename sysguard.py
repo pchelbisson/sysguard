@@ -1,4 +1,7 @@
 import argparse
+import os
+import sys
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -24,7 +27,31 @@ def main():
     args = parser.parse_args()
 
     if args.command == "check":
-        print(args.paths)
+        directories = ["/var/log", "/etc"]
+
+        for path in directories:
+            if not os.path.exists(path):
+                print(f"ERROR: {path} does not exist")
+                sys.exit(1)
+
+            elif not os.path.isdir(path):
+                print(f"ERROR: {path} is not a directory")
+                sys.exit(1)
+
+            elif not os.access(path, os.R_OK):
+                print(f"ERROR: Permission denied: {path}")
+                sys.exit(1)
+            elif not os.listdir(path):
+                print(f"ERROR: {path} contains no log files")
+                sys.exit(1)
+
+
+            else:
+                print(f"OK: {path} is accessible")
+
+        sys.exit(0)
+
+
 
 
 if __name__ == "__main__":
