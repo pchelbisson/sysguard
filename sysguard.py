@@ -26,6 +26,11 @@ def main():
 
     args = parser.parse_args()
 
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
+
+
     if args.command == "check":
         directories = ["/var/log", "/etc"]
 
