@@ -62,6 +62,15 @@ def check_systemd():
     except FileNotFoundError:
         print("systemctl not found. Is this a Linux system?")
         return False
+    
+def check_mount(path="/"): # If the path is not specified, we check the root
+    if os.path.ismount(path):
+        print(f"Path {path} is a mount point")
+        return True
+    else:
+        print(f"Path {path} is NOT a mount point")
+        return False
+
 
 def check_directories(paths):
     """Checking directory list."""
@@ -86,6 +95,7 @@ def main():
     #Check Pyhton version
     check_python_version()
     check_root()
+    #check_mount()
 
     parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
     subparsers = parser.add_subparsers(dest="command") 
@@ -105,14 +115,28 @@ def main():
         
         # We are launching checks
         disk_ok = check_disk("/")
-        dirs_ok = check_directories(args.paths)
         systemd_ok = check_systemd()
+        
+        print(f"\n--- Checking Paths: {args.paths} ---")
+        dirs_ok = check_directories(args.paths) #Checks existence and rights
+        
+        # Let's add a mount check for each path here.
+        mounts_ok = True
+        # We check all paths that the user passed via --paths
+        for p in args.paths:
+            if not check_mount(p):
+                # We don't consider this a critical error for exit,
+                # but we note that not everything is smooth.
+                mounts_ok = False
 
         # Deciding which code to exit with at the end
         if not all([disk_ok, dirs_ok, systemd_ok]):
-            print("\n SOME CHECKS FAILED")
+            print("\n CRITICAL: SOME CHECKS FAILED")
             sys.exit(1)
         
+        if not mounts_ok:
+            print("\n⚠️  ADVISORY: Some paths are not mount points (this is often okay)")
+            
         print("--- All checks passed successfully ---")
     else:
         parser.print_help()
