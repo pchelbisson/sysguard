@@ -1,0 +1,15 @@
+2026-01-09 10:54:22 - INFO - Current version of Python: 3.12
+2026-01-09 11:19:14 - INFO - Current version of Python: 3.12
+2026-01-09 11:19:14 - WARNING - Warning: Running as non-root user (UID: 1000). Some checks may be limited.
+2026-01-09 11:19:14 - INFO - --- Starting Health Check ---
+2026-01-09 11:19:14 - INFO - Disk /: 10GB / 13GB (75.6% used)
+2026-01-09 11:19:14 - INFO - systemd: running
+2026-01-09 11:19:14 - INFO - 
+--- Checking Paths: ['/var/log', '/etc'] ---
+2026-01-09 11:19:14 - INFO - /var/log: Accessible
+2026-01-09 11:19:14 - INFO - /etc: Accessible
+2026-01-09 11:19:14 - INFO - Path /var/log is NOT a mount point
+2026-01-09 11:19:14 - INFO - Path /etc is NOT a mount point
+2026-01-09 11:19:14 - WARNING - 
+⚠️  ADVISORY: Some paths are not mount points (this is often okay)
+2026-01-09 11:19:14 - INFO - --- All checks passed successfully ---
