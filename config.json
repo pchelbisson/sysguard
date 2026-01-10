@@ -1,0 +1,4 @@
+{
+  "directories": ["/var/log", "/etc", "/tmp"],
+  "disk_threshold": 85
+}

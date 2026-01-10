@@ -1,10 +1,13 @@
-🚀 SysGuard: DevOps Learning Roadmap 2026
-🟢 Phase 1: CLI Utility Fundamentals (Current Stage)
-Focus: Core logic and local system interaction.
-Base Logic: Develop Python modules to monitor disk usage, systemd services, and OS versions.
-Advanced Logging: Transition from print() to the logging module with structured levels (INFO, WARNING, ERROR) and file rotation.
-External Configuration: Move thresholds and paths into a config.json or config.yaml file.
-LVM Integration: Add a module for Logical Volume Manager (LVM) health checks (practicing subprocess and CLI parsing).
+## 🚀 SysGuard: DevOps Learning Roadmap 2026
+
+### 🟢 Phase 1: CLI Utility Fundamentals (Current Stage)
+
+- [x] **`Focus:`** Core logic and local system interaction.
+- [x] **`Base Logic:`** Develop Python modules to monitor disk usage, systemd services, and OS versions.
+- [x] **`Advanced Logging:`** Transition from print() to the logging module with structured levels (INFO, WARNING, ERROR) and file rotation.
+- [x] **`External Configuration:`** Move thresholds and paths into a config.json or config.yaml file.
+- [ ] **`LVM Integration:`** Add a module for Logical Volume Manager (LVM) health checks (practicing subprocess and CLI parsing).
+
 🟡 Phase 2: Data & Networking (Python for DevOps)
 Focus: Machine-readable data and remote notifications.
 JSON Reporting: Generate structured reports for integration with third-party tools.

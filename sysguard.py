@@ -5,6 +5,8 @@ from pathlib import Path
 import shutil
 import os
 import logging
+import json
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -32,14 +34,14 @@ def check_root():
     except AttributeError:
         logging.error("System does not support UID checks (Non-POSIX OS)")
 
-def check_disk(path="/"):
+def check_disk(path="/", threshold=90):
     """Checking free disk space."""
     try:
         total, used, free = shutil.disk_usage(path)
         percent_used = (used / total) * 100
         logging.info(f"Disk {path}: {used // (2**30)}GB / {total // (2**30)}GB ({percent_used:.1f}% used)")
-        if percent_used > 90:
-            logging.warning(f" Critical: Disk usage on {path} is over 90%!")
+        if percent_used > threshold:
+            logging.warning(f" Critical: Disk usage on {path} is over {threshold}!")
             return False
         return True
     except Exception as e:
@@ -96,10 +98,21 @@ def check_directories(paths):
     return all_ok
 
 def main():
-    #Check Pyhton version
-    check_python_version()
-    check_root()
-    #check_mount()
+    config = {
+    "directories": ["/var/log", "/etc"],
+    "disk_threshold": 90
+    }
+    
+    config_path = "config.json"
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                file_data = json.load(f)
+                if isinstance(file_data, dict):
+                    config.update(file_data)
+                    logging.info("Configuration loaded from config.json")
+        except Exception as e:
+            logging.error(f"Failed to load config.json: {e}")
 
     parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
     subparsers = parser.add_subparsers(dest="command") 
@@ -108,17 +121,20 @@ def main():
     check_parser.add_argument(
         "--paths", 
         nargs='+', 
-        default=["/var/log", "/etc"], # Default values
+        default=config.get("directories"), # Default values
         help="Directories to check"
     )
 
     args = parser.parse_args()
 
     if args.command == "check":
+        check_python_version()
+        check_root()
+        
         logging.info("--- Starting Health Check ---")
         
         # We are launching checks
-        disk_ok = check_disk("/")
+        disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
         systemd_ok = check_systemd()
         
         logging.info(f"\n--- Checking Paths: {args.paths} ---")
@@ -139,7 +155,7 @@ def main():
             sys.exit(1)
         
         if not mounts_ok:
-            logging.warning("\n⚠️  ADVISORY: Some paths are not mount points (this is often okay)")
+            logging.warning("\n ADVISORY: Some paths are not mount points (this is often okay)")
             
         logging.info("--- All checks passed successfully ---")
     else:
