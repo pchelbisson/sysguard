@@ -1,4 +1,6 @@
 {
   "directories": ["/var/log", "/etc", "/tmp"],
-  "disk_threshold": 85
+  "disk_threshold": 85,
+  "required_ports": [53, 2222, 80, 3306, 9999],
+  "check_hosts": ["8.8.8.8"]
 }

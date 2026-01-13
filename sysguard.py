@@ -6,6 +6,37 @@ import shutil
 import os
 import logging
 import json
+import socket
+
+import socket
+
+def check_network(ports, host):
+    """Checking the availability of local ports."""
+    all_ok = True
+    logging.info("--- Checking Network Ports ---")
+    
+    if isinstance(host, list):
+        host = host[0]
+        
+    for port in ports:
+        try:
+            # Create a socket object (AF_INET - IPv4, SOCK_STREAM - TCP)
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1.0)
+            
+            # The connect_ex method returns 0 on success.
+                result = s.connect_ex((host, port))
+            
+                if result == 0:
+                    logging.info(f"Port {port}: OPEN")
+                else:
+                    logging.warning(f"Host {host} Port {port}: CLOSED (Code: {result})")
+                    all_ok = False
+        except Exception as e:
+            logging.error(f"Error checking port {port} on {host}: {e}")
+            all_ok = False
+    return all_ok
+
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
@@ -113,6 +144,10 @@ def main():
                     logging.info("Configuration loaded from config.json")
         except Exception as e:
             logging.error(f"Failed to load config.json: {e}")
+            
+    target_host = config.get("check_hosts")[0] if isinstance(config.get("check_hosts"), list) else config.get("check_hosts", "127.0.0.1")
+
+    target_ports = config.get("required_ports", [])
 
     parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
     subparsers = parser.add_subparsers(dest="command") 
@@ -136,6 +171,7 @@ def main():
         # We are launching checks
         disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
         systemd_ok = check_systemd()
+        network_ok = check_network(target_ports, target_host)
         
         logging.info(f"\n--- Checking Paths: {args.paths} ---")
         dirs_ok = check_directories(args.paths) #Checks existence and rights
@@ -150,7 +186,7 @@ def main():
                 mounts_ok = False
 
         # Deciding which code to exit with at the end
-        if not all([disk_ok, dirs_ok, systemd_ok]):
+        if not all([disk_ok, dirs_ok, systemd_ok, network_ok]):
             logging.critical("\n CRITICAL: SOME CHECKS FAILED")
             sys.exit(1)
         
