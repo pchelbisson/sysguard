@@ -8,7 +8,35 @@ import logging
 import json
 import socket
 
-import socket
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    filename='sysguard.log') 
+
+def check_lvm():
+    try:
+        result = subprocess.run(
+            ["sudo", "vgs", "--noheadings", "-o", "vg_name,vg_free", "--units", "g"],
+            capture_output=True, text=True, check=True
+        )
+        output = result.stdout.strip()
+        if not output:
+            logging.info("LVM: No volume groups found")
+            return
+        
+        # Split a string by spaces
+        parts = output.split()
+        vg_name = parts[0]
+        # Remove the 'g' and convert to float
+        free_space = float(parts[1].replace('g', '').replace(',', '.'))
+        
+        logging.info(f"LVM VG '{vg_name}': {free_space}GB free")
+        
+        if free_space < 1.0:
+            logging.warning(f"LVM: Low free space in VG {vg_name} ({free_space}GB)")
+            
+    except Exception as e:
+        logging.error(f"LVM check failed: {e}")
+
 
 def check_network(ports, host):
     """Checking the availability of local ports."""
@@ -36,12 +64,6 @@ def check_network(ports, host):
             logging.error(f"Error checking port {port} on {host}: {e}")
             all_ok = False
     return all_ok
-
-
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    filename='sysguard.log') 
 
 def check_python_version():
     # We get major and minor versions (for example, 3 and 15)
@@ -169,6 +191,7 @@ def main():
         logging.info("--- Starting Health Check ---")
         
         # We are launching checks
+        lvm_ok = check_lvm()
         disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
         systemd_ok = check_systemd()
         network_ok = check_network(target_ports, target_host)
@@ -186,7 +209,7 @@ def main():
                 mounts_ok = False
 
         # Deciding which code to exit with at the end
-        if not all([disk_ok, dirs_ok, systemd_ok, network_ok]):
+        if not all([disk_ok, dirs_ok, systemd_ok, network_ok, lvm_ok]):
             logging.critical("\n CRITICAL: SOME CHECKS FAILED")
             sys.exit(1)
         
