@@ -27,6 +27,10 @@ Currently, the check command performs:
     * directory type
     * read permissions
 * ⚙️ systemd status check (systemctl is-system-running)
+* 📦 LVM volume group free space check
+* 📍 Mount point checks
+* 🌐 Network port availability (TCP)
+* 📝 All checks are logged using Python logging.
 Each check prints a clear status and the tool exits with:
 * 0 — all checks passed
 * 1 — one or more checks failed
@@ -41,7 +45,21 @@ Standard Python libraries only:
 * pathlib — filesystem paths
 * shutil — disk usage
 * subprocess — systemd interaction
+* socket — network connectivity and TCP port scanning
+* json — configuration file parsing and data management
+* logging — structured event tracking and status reporting
 No external dependencies.
+
+---
+
+### ⚙️ Configuration
+
+Some parameters are configured via config.json, for example:
+
+* directories to check
+* disk usage threshold
+* network hosts and ports
+This allows changing behavior without modifying the code.
 
 ---
 
@@ -65,9 +83,8 @@ python3 sysguard.py --help
 
 ### 🚧 Work in Progress
 Planned improvements:
+* Database integration
 * Better output formatting
-* Structured result reporting
-* Logging support
 * Config file support
 * More system checks
 * Packaging as a real CLI tool
