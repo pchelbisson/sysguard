@@ -11,26 +11,28 @@
 
 ### 🟡 Phase 2: Data & Networking (Python for DevOps)
 
-**`Focus:`** Machine-readable data and remote notifications.
-**`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
-**`Security Hardening:`** Checking SSH configuration (disabling root login, custom port) and using RSA keys.
-**`JSON Reporting:`** Generate structured reports for integration with third-party tools.
-**`Persistence Layer:`** Implement an SQLite database to store history and track system performance trends.
-**`Automated Alerting:`** Integrate Telegram API or Webhooks to send instant notifications on critical errors.
+- **`Focus:`** Machine-readable data and remote notifications.
+- **`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
+- **`Security Hardening:`** Checking SSH configuration (disabling root login, custom port) and using RSA keys.
+- **`JSON Reporting:`** Generate structured reports for integration with third-party tools.
+- **`Persistence Layer:`** Implement an SQLite database to store history and track system performance trends.
+- **`Automated Alerting:`** Integrate Telegram API or Webhooks to send instant notifications on critical errors.
 
 ### 🟠 Phase 3: Containerization & Automation (DevOps Core)
-**`Focus:`** Portability and CI/CD pipelines.
-**`Dockerization:`** Create a Dockerfile (optimized for size) to run SysGuard in an isolated container.
-**`CI/CD (Gitlab CI):`** Automate linting and unit testing for every git push.
-**`Ansible:`** Write playbooks to automate the deployment and configuration of SysGuard on multiple remote servers.
+- **`Focus:`** Portability and CI/CD pipelines.
+- **`Static Analysis (SAST):`** Integration of Bandit and Safety into the pipeline.
+- **`Secret Scanning:`** Checking if you have accidentally forgotten your password or key in the code.
+- **`Dockerization:`** Create a Dockerfile (optimized for size) to run SysGuard in an isolated container.
+- **`CI/CD (Gitlab CI):`** Automate linting and unit testing for every git push.
+- **`Ansible:`** Write playbooks to automate the deployment and configuration of SysGuard on multiple remote servers.
 
 ### 🔴 Phase 4: Infrastructure as Code & Cloud
-**`Focus:`** Scaling and cloud-native services (Yandex Cloud).
-**`Terraform (IaC):`** Provision Virtual Machines and networks in the cloud using declarative code.
-**`Cloud Monitoring:`** Bridge SysGuard metrics with cloud-native monitoring services.
+- **`Focus:`** Scaling and cloud-native services (Yandex Cloud).
+- **`Terraform (IaC):`** Provision Virtual Machines and networks in the cloud using declarative code.
+- **`Cloud Monitoring:`** Bridge SysGuard metrics with cloud-native monitoring services.
 
 ### 🟣 Phase 5: Orchestration & Observability
-**`Focus:`** Enterprise-grade high availability and visualization.
-**`K8s Deployment:`** Launch SysGuard as a CronJob or DaemonSet within a Kubernetes cluster.
-**`Helm Packaging:`** Create a Helm Chart for one-click installation in K8s.
-**`Observability Stack:`** Export data to Prometheus and visualize system health on a Grafana dashboard.
+- **`Focus:`** Enterprise-grade high availability and visualization.
+- **`K8s Deployment:`** Launch SysGuard as a CronJob or DaemonSet within a Kubernetes cluster.
+- **`Helm Packaging:`** Create a Helm Chart for one-click installation in K8s.
+- **`Observability Stack:`** Export data to Prometheus and visualize system health on a Grafana dashboard.
