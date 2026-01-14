@@ -69,23 +69,39 @@ def check_python_version():
     # We get major and minor versions (for example, 3 and 15)
     major = sys.version_info.major
     minor = sys.version_info.minor
-    logging.info(f"Current version of Python: {major}.{minor}")
     
+    py_version = {
+        "status": "OK",
+        "version": f"{major}.{minor}"
+    }
     # Example condition: Works only on Python 3.8 and above
     if sys.version_info < (3, 8):
         logging.error("Error: Python 3.8+ is required")
         sys.exit(1)
+    return py_version
+        
+    
+    
+    
 
 def check_root():
+    
+    report = {"check_name": "root_check", "status": "UNKNOWN", "uid": None}
     try:
         euid = os.geteuid()
+        report["uid"] = euid
+        
         if euid == 0:
             logging.info("Running with root privileges")
+            report["status"] = "OK"
         else:
             # We are not leaving the program, we are just warning you
-            logging.warning("Warning: Running as non-root user (UID: {}). Some checks may be limited.".format(euid))
+            logging.warning(f"Warning: Running as non-root user (UID: {euid})")
+            report["status"] = "WARNING"
     except AttributeError:
         logging.error("System does not support UID checks (Non-POSIX OS)")
+        report["status"] = "ERROR"
+    return report
 
 def check_disk(path="/", threshold=90):
     """Checking free disk space."""
@@ -185,16 +201,17 @@ def main():
     args = parser.parse_args()
 
     if args.command == "check":
-        check_python_version()
-        check_root()
-        
         logging.info("--- Starting Health Check ---")
         
         # We are launching checks
+        py_version = check_python_version()
+        root_result = check_root()
         lvm_ok = check_lvm()
         disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
         systemd_ok = check_systemd()
         network_ok = check_network(target_ports, target_host)
+        logging.info(f"Python version check: {py_version['version']}")
+        logging.info(f"DEBUG: Root report data is {root_result}")
         
         logging.info(f"\n--- Checking Paths: {args.paths} ---")
         dirs_ok = check_directories(args.paths) #Checks existence and rights
