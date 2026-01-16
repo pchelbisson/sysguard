@@ -201,11 +201,16 @@ def main():
     args = parser.parse_args()
 
     if args.command == "check":
+        full_report = []
         logging.info("--- Starting Health Check ---")
         
         # We are launching checks
         py_version = check_python_version()
+        full_report.append(py_version)
+        
         root_result = check_root()
+        full_report.append(root_result)
+        
         lvm_ok = check_lvm()
         disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
         systemd_ok = check_systemd()
@@ -224,7 +229,7 @@ def main():
                 # We don't consider this a critical error for exit,
                 # but we note that not everything is smooth.
                 mounts_ok = False
-
+        logging.info(f"FINAL REPORT STRUCTURE: {full_report}")
         # Deciding which code to exit with at the end
         if not all([disk_ok, dirs_ok, systemd_ok, network_ok, lvm_ok]):
             logging.critical("\n CRITICAL: SOME CHECKS FAILED")
