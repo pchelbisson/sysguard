@@ -71,6 +71,7 @@ def check_python_version():
     minor = sys.version_info.minor
     
     py_version = {
+        "check_name": "py_version_check",
         "status": "OK",
         "version": f"{major}.{minor}"
     }
@@ -105,17 +106,43 @@ def check_root():
 
 def check_disk(path="/", threshold=90):
     """Checking free disk space."""
+    check_disk_dict = {
+        "check_name": "check_disk",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "path": path,
+            "used_gb": 0,
+            "total_gb": 0,
+            "percent": 0       
+        }
+    }
     try:
         total, used, free = shutil.disk_usage(path)
         percent_used = (used / total) * 100
-        logging.info(f"Disk {path}: {used // (2**30)}GB / {total // (2**30)}GB ({percent_used:.1f}% used)")
-        if percent_used > threshold:
+        
+        total_gb = total // (2**30)
+        used_gb = used // (2**30)
+        
+        check_disk_dict["data"].update({
+            "used_gb": used_gb,
+            "total_gb": total_gb,
+            "percent": round(percent_used, 1)
+        })
+        if percent_used > threshold:            
+            check_disk_dict["status"] = "WARNING"
+            check_disk_dict["message"] = f"Disk usage on {path} is high: {percent_used:.1f}%"
             logging.warning(f" Critical: Disk usage on {path} is over {threshold}!")
-            return False
-        return True
-    except Exception as e:
-        logging.warning(f"Disk check failed: {e}")
-        return False
+        else: 
+            check_disk_dict["status"] = "OK"
+            check_disk_dict["message"] = f"Disk space on {path} is within limits"
+            logging.info(f"Disk {path}: {used // (2**30)}GB / {total // (2**30)}GB ({percent_used:.1f}% used)")
+            
+    except Exception as e:       
+        check_disk_dict["status"] = "ERROR"
+        check_disk_dict["message"] = str(e)
+        logging.error(f"Disk check failed for {path}: {e}")
+    return check_disk_dict
 
 
 def check_systemd():
@@ -183,7 +210,8 @@ def main():
         except Exception as e:
             logging.error(f"Failed to load config.json: {e}")
             
-    target_host = config.get("check_hosts")[0] if isinstance(config.get("check_hosts"), list) else config.get("check_hosts", "127.0.0.1")
+    target_host = config.get("check_hosts")[0] if config.get("check_hosts") else "127.0.0.1"
+
 
     target_ports = config.get("required_ports", [])
 
@@ -204,41 +232,66 @@ def main():
         full_report = []
         logging.info("--- Starting Health Check ---")
         
+        for path in args.paths:
+            disk_result = check_disk(path, threshold=config.get("disk_threshold"))
+            full_report.append(disk_result)
         # We are launching checks
-        py_version = check_python_version()
-        full_report.append(py_version)
+        full_report.append(check_python_version())
+        full_report.append(check_root())
         
-        root_result = check_root()
-        full_report.append(root_result)
+        errors_count = 0
+        warnings_count = 0       
         
-        lvm_ok = check_lvm()
-        disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
-        systemd_ok = check_systemd()
-        network_ok = check_network(target_ports, target_host)
-        logging.info(f"Python version check: {py_version['version']}")
-        logging.info(f"DEBUG: Root report data is {root_result}")
+        logging.info("\n--- SUMMARY REPORT ---")
+
+        for report in full_report:
+            status = report.get("status")
+            name = report.get("check_name")
+            msg = report.get("message")
+            
+            logging.info(f"[{status}] {name}: {msg}")
+            
+            if status == "ERROR":
+                errors_count += 1
+            elif status == "WARNING":
+                warnings_count += 1
+                
+        if errors_count > 0:
+            logging.critical(f"\n--- FAILED: {errors_count} errors found! ---")
+            sys.exit(1)
+        elif warnings_count > 0:
+            logging.warning(f"\n--- ATTENTION: {warnings_count} warnings found, but checks passed ---")
+        else:    
+            logging.info("\n--- All checks finished successfully ---")
         
-        logging.info(f"\n--- Checking Paths: {args.paths} ---")
-        dirs_ok = check_directories(args.paths) #Checks existence and rights
+        #lvm_ok = check_lvm()
+        #disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
+        #systemd_ok = check_systemd()
+        #network_ok = check_network(target_ports, target_host)
+        #logging.info(f"Python version check: {py_version['version']}")
+        #logging.info(f"DEBUG: Root report data is {root_result}")
+        
+        #logging.info(f"\n--- Checking Paths: {args.paths} ---")
+        #dirs_ok = check_directories(args.paths) #Checks existence and rights
         
         # Let's add a mount check for each path here.
-        mounts_ok = True
+        #mounts_ok = True
         # We check all paths that the user passed via --paths
-        for p in args.paths:
-            if not check_mount(p):
+        #for p in args.paths:
+            #if not check_mount(p):
                 # We don't consider this a critical error for exit,
                 # but we note that not everything is smooth.
-                mounts_ok = False
-        logging.info(f"FINAL REPORT STRUCTURE: {full_report}")
+                #mounts_ok = False
+        #logging.info(f"FINAL REPORT STRUCTURE: {full_report}")
         # Deciding which code to exit with at the end
-        if not all([disk_ok, dirs_ok, systemd_ok, network_ok, lvm_ok]):
-            logging.critical("\n CRITICAL: SOME CHECKS FAILED")
-            sys.exit(1)
+        #if not all([disk_ok, dirs_ok, systemd_ok, network_ok, lvm_ok]):
+            #logging.critical("\n CRITICAL: SOME CHECKS FAILED")
+            #sys.exit(1)
         
-        if not mounts_ok:
-            logging.warning("\n ADVISORY: Some paths are not mount points (this is often okay)")
+        #if not mounts_ok:
+            #logging.warning("\n ADVISORY: Some paths are not mount points (this is often okay)")
             
-        logging.info("--- All checks passed successfully ---")
+        #logging.info("--- All checks passed successfully ---")
     else:
         parser.print_help()
 
