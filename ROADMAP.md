@@ -8,15 +8,55 @@
 - [x] **`External Configuration:`** Move thresholds and paths into a config.json or config.yaml file.
 - [x] **`Network Audit:`** Checking open ports (SSH 2222, MySQL) and auditing network interfaces.
 - [x] **`LVM Integration:`** Add a module for Logical Volume Manager (LVM) health checks (practicing subprocess and CLI parsing).
+- [ ] Standardization of the check structure (single interface)
+- [ ] Unified check result format (dict)
 
-### 🟡 Phase 2: Data & Networking (Python for DevOps)
+### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps)
 
-- **`Focus:`** Machine-readable data and remote notifications.
+- **`Focus:`** Turn the utility into a policy-driven system checker
+- **`Security Baseline:`**
+  - **✅ `Definitely try:`**
+    - **SSH hardening checks:**
+      - `PermitRootLogin`
+      - `PasswordAuthentication`
+      - Custom SSH port
+    - **File permission checks:**
+      - `/etc/shadow`
+      - `/etc/passwd`
+      - `/root`
+    - **Warning-only checks for root execution**
+  - **🟡 `That would be nice`**
+    - **Firewall status check (ufw / firewalld)**
+    - **fail2ban status**
+    - **SELinux / AppArmor status (read-only)**
+  - **🔵`Optional`**
+    - **Simple secrets detection (regex-based, read-only)**
+- **`JSON Reporting:`**
+  - **✅`Definitely try:`**
+    - **Unified JSON report (machine-readable)**
+    - **stdout → JSON, logs → file/stderr**
+  - **🟡`That would be nice`**
+    - **Report severity levels (ok / warning / critical)**
+- **`Configuration & Secrets Handling:`**
+  - **✅ `Definitely try:`**
+    - Read sensitive values only from environment variables (local only)
+    - No secrets in config.json
+  - **🟡 `That would be nice:`**
+    - Validation if required env vars are missing
+- **`Persistence Layer:`** 
+  - **🟡`That would be nice`**
+    - **SQLite DB:**
+      - store execution history
+      - trend analysis (disk, failures)
+  - **🔵`Optional`**
+    - **Aggregation / basic stats**
+- **🟡`Automated Alerting:`**
+  - **`That would be nice`**
+    - **Telegram / Webhook alerts on critical failures**
+- **`Operational Scope:`**
+  - **✅ `Definitely try:`**
+    - Read-only checks only
 - **`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
-- **`Security Hardening:`** Checking SSH configuration (disabling root login, custom port) and using RSA keys.
-- **`JSON Reporting:`** Generate structured reports for integration with third-party tools.
-- **`Persistence Layer:`** Implement an SQLite database to store history and track system performance trends.
-- **`Automated Alerting:`** Integrate Telegram API or Webhooks to send instant notifications on critical errors.
 
 ### 🟠 Phase 3: Containerization & Automation (DevOps Core)
 - **`Focus:`** Portability and CI/CD pipelines.
