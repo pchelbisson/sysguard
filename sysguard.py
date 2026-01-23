@@ -38,34 +38,44 @@ def check_lvm():
         logging.error(f"LVM check failed: {e}")
 
 
-def check_network(ports, host):
+def check_network(host, port):
     """Checking the availability of local ports."""
-    all_ok = True
-    logging.info("--- Checking Network Ports ---")
-    
-    if isinstance(host, list):
-        host = host[0]
+    check_network_dict = {
+        "check_name": "check_network",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "host": host,
+            "port": port
+        }
+    }
         
-    for port in ports:
-        try:
-            # Create a socket object (AF_INET - IPv4, SOCK_STREAM - TCP)
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1.0)
+    try: # Create a socket object (AF_INET - IPv4, SOCK_STREAM - TCP)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2.0)
+            res = s.connect_ex((host, port))
             
-            # The connect_ex method returns 0 on success.
-                result = s.connect_ex((host, port))
+            if res == 0:
+                check_network_dict["status"] = "OK"
+                check_network_dict["message"] = f"Port {port} on {host} is OPEN"
+                logging.info(check_network_dict["message"])
+            else:
+                check_network_dict["status"] = "WARNING"
+                check_network_dict["message"] = f"Port {port} on {host} is CLOSED (Code: {res})"
+                logging.warning(check_network_dict["message"])
+                
+    except Exception as e:
+        check_network_dict["status"] = "ERROR"
+        check_network_dict["message"] = f"Connection error: {e}"
+        logging.error(f"Error checking {host}:{port} - {e}")
+
+    return check_network_dict
+
             
-                if result == 0:
-                    logging.info(f"Port {port}: OPEN")
-                else:
-                    logging.warning(f"Host {host} Port {port}: CLOSED (Code: {result})")
-                    all_ok = False
-        except Exception as e:
-            logging.error(f"Error checking port {port} on {host}: {e}")
-            all_ok = False
-    return all_ok
+       
 
 def check_python_version():
+    """Сheck the installed version of Python"""
     # We get major and minor versions (for example, 3 and 15)
     major = sys.version_info.major
     minor = sys.version_info.minor
@@ -94,8 +104,8 @@ def check_python_version():
     
 
 def check_root():
-    
-    check_root_dict = {"check_name": "root_check", 
+    """Checking root privileges"""
+    check_root_dict = {"check_name": "check_root", 
                        "status": "UNKNOWN", 
                        "message": "", 
                        "data": {"uid": None}}
@@ -254,6 +264,12 @@ def main():
         # We are launching checks
         full_report.append(check_python_version())
         full_report.append(check_root())
+        
+        logging.info(f"--- Checking Network Ports on {target_host} ---")
+        for port in target_ports:
+            net_result = check_network(target_host, port)
+            full_report.append(net_result)
+
         
         errors_count = 0
         warnings_count = 0       

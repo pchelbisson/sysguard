@@ -10,6 +10,7 @@
 - [x] **`LVM Integration:`** Add a module for Logical Volume Manager (LVM) health checks (practicing subprocess and CLI parsing).
 - [ ] Standardization of the check structure (single interface)
 - [ ] Unified check result format (dict)
+- [ ] Log refactoring
 
 ### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps)
 
@@ -56,7 +57,6 @@
 - **`Operational Scope:`**
   - **✅ `Definitely try:`**
     - Read-only checks only
-- **`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
 
 ### 🟠 Phase 3: Containerization & Automation (DevOps Core)
 - **`Focus:`** Portability and CI/CD pipelines.
@@ -65,6 +65,7 @@
 - **`Dockerization:`** Create a Dockerfile (optimized for size) to run SysGuard in an isolated container.
 - **`CI/CD (Gitlab CI):`** Automate linting and unit testing for every git push.
 - **`Ansible:`** Write playbooks to automate the deployment and configuration of SysGuard on multiple remote servers.
+- **`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
 
 ### 🔴 Phase 4: Infrastructure as Code & Cloud
 - **`Focus:`** Scaling and cloud-native services (Yandex Cloud).
