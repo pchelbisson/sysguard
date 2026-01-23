@@ -69,17 +69,25 @@ def check_python_version():
     # We get major and minor versions (for example, 3 and 15)
     major = sys.version_info.major
     minor = sys.version_info.minor
+    current_version = f"{major}.{minor}"
     
-    py_version = {
-        "check_name": "py_version_check",
+    py_version_dict = {
+        "check_name": "check_python_version",
         "status": "OK",
-        "version": f"{major}.{minor}"
+        "message": f"Python {current_version} is supported",
+        "data": {
+            "version": current_version,
+            "min_required": "3.8"
+        }
     }
     # Example condition: Works only on Python 3.8 and above
     if sys.version_info < (3, 8):
-        logging.error("Error: Python 3.8+ is required")
-        sys.exit(1)
-    return py_version
+        py_version_dict["status"] = "ERROR"
+        py_version_dict["message"] = f"Python {current_version} is too old (min 3.8 required)"
+        logging.error(py_version_dict["message"])
+    else:
+        logging.info(py_version_dict["message"])
+    return py_version_dict
         
     
     
@@ -87,22 +95,30 @@ def check_python_version():
 
 def check_root():
     
-    report = {"check_name": "root_check", "status": "UNKNOWN", "uid": None}
+    check_root_dict = {"check_name": "root_check", 
+                       "status": "UNKNOWN", 
+                       "message": "", 
+                       "data": {"uid": None}}
     try:
         euid = os.geteuid()
-        report["uid"] = euid
+        check_root_dict["data"]["uid"] = euid
         
         if euid == 0:
-            logging.info("Running with root privileges")
-            report["status"] = "OK"
+            check_root_dict["status"] = "OK"
+            check_root_dict["message"] = "Running with root privileges"
+            logging.info(check_root_dict["message"])
+            
         else:
             # We are not leaving the program, we are just warning you
-            logging.warning(f"Warning: Running as non-root user (UID: {euid})")
-            report["status"] = "WARNING"
+            check_root_dict["status"] = "WARNING"
+            check_root_dict["message"] = f"Running as non-root user (UID: {euid})"
+            logging.warning(check_root_dict["message"])
+            
     except AttributeError:
-        logging.error("System does not support UID checks (Non-POSIX OS)")
-        report["status"] = "ERROR"
-    return report
+        check_root_dict["status"] = "ERROR"
+        check_root_dict["message"] = "System does not support UID checks (Non-POSIX OS)"
+        logging.error(check_root_dict["message"])
+    return check_root_dict
 
 def check_disk(path="/", threshold=90):
     """Checking free disk space."""
@@ -118,7 +134,7 @@ def check_disk(path="/", threshold=90):
         }
     }
     try:
-        total, used, free = shutil.disk_usage(path)
+        total, used, _ = shutil.disk_usage(path)
         percent_used = (used / total) * 100
         
         total_gb = total // (2**30)
