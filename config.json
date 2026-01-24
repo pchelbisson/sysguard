@@ -1,5 +1,10 @@
 {
-  "directories": ["/var/log", "/etc", "/tmp"],
+  "directories": [
+  {"path": "/var/log", "critical": true},
+  {"path": "/tmp", "critical": false},
+  {"path": "/etc", "critical": true}
+  ],
+  "disk_paths": ["/"],
   "disk_threshold": 85,
   "required_ports": [53, 2222, 80, 3306, 9999],
   "check_hosts": ["8.8.8.8"]

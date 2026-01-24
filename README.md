@@ -69,11 +69,6 @@ This allows changing behavior without modifying the code.
 python3 sysguard.py check
 ```
 
-Check custom directories:
-```bash
-python3 sysguard.py check --paths /var/log /etc /home
-```
-
 Help:
 ```bash
 python3 sysguard.py --help

@@ -200,24 +200,59 @@ def check_mount(path="/"): # If the path is not specified, we check the root
         return False
 
 
-def check_directories(paths):
-    """Checking directory list."""
-    all_ok = True
-    for path_str in paths:
-        path = Path(path_str)
-        
-        if not path.exists():
-            logging.error(f"{path}: Does not exist")
-            all_ok = False
-        elif not path.is_dir():
-            logging.error(f"{path}: Not a directory")
-            all_ok = False
-        elif not os.access(path, os.R_OK): # pathlib is not yet a perfect replacement for access
-            logging.error(f"{path}: Permission denied")
-            all_ok = False
+def check_directory(path_str, is_critical=False):
+    """Check single directory accessibility."""
+    check_directory_dict = {
+        "check_name": "check_directory",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "path": path_str,
+            "exists": False,
+            "is_dir": False,
+            "readable": False,
+            "is_critical_failure": False       
+        }
+    }
+    path = Path(path_str)
+    
+    def handle_error(msg):
+        if is_critical:
+            # If it's critical, set the status to ERROR and log the error.
+            check_directory_dict["data"]["is_critical_failure"] = True
+            logging.error(f"CRITICAL ERROR: {msg}")
+            return "ERROR"
         else:
-            logging.info(f"{path}: Accessible")
-    return all_ok
+            # If it's not critical, the status is WARNING and we log the warning.
+            logging.warning(f"NON-CRITICAL WARNING: {msg}")
+            return "WARNING"
+        
+    if not path.exists():
+        check_directory_dict["status"] = handle_error(f"{path}: Does not exist")
+        check_directory_dict["data"]["exists"] = False
+        check_directory_dict["message"] = f"{path}: Does not exist"
+        logging.error(f"{path}: Does not exist")
+        
+    elif not path.is_dir():
+        check_directory_dict["status"] = handle_error(f"{path}: Not a directory")
+        check_directory_dict["data"]["is_dir"] = False
+        check_directory_dict["message"] = f"{path}: Not a directory"
+        logging.error(f"{path}: Not a directory")
+    elif not os.access(path, os.R_OK): # pathlib is not yet a perfect replacement for access
+        check_directory_dict["status"] = handle_error(f"{path}: Permission denied")
+        check_directory_dict["data"]["readable"] = False
+        check_directory_dict["message"] = f"{path}: Permission denied"
+        logging.error(f"{path}: Permission denied")
+    else:
+        check_directory_dict["status"] = "OK"
+        check_directory_dict["message"] = f"{path}: Accessible"
+        check_directory_dict["data"].update({
+            "exists": True,
+            "is_dir": True,
+            "readable": True
+        })
+        logging.info(f"{path}: Accessible")
+    return check_directory_dict
 
 def main():
     config = {
@@ -245,12 +280,6 @@ def main():
     subparsers = parser.add_subparsers(dest="command") 
 
     check_parser = subparsers.add_parser("check", help="Health check")
-    check_parser.add_argument(
-        "--paths", 
-        nargs='+', 
-        default=config.get("directories"), # Default values
-        help="Directories to check"
-    )
 
     args = parser.parse_args()
 
@@ -258,8 +287,21 @@ def main():
         full_report = []
         logging.info("--- Starting Health Check ---")
         
-        for path in args.paths:
-            disk_result = check_disk(path, threshold=config.get("disk_threshold"))
+        directories_data = config.get("directories", [{"path": "/", "critical": True}])
+        for dir_info in directories_data:
+            # Safely extract the path and critical flag
+            path_str = dir_info.get("path")
+            is_critical = dir_info.get("critical", False)
+            dir_report = check_directory(path_str, is_critical)
+            full_report.append(dir_report)
+            # If the critical check fails, we stop execution (interrupt the script)
+            if dir_report["status"] == "CRITICAL_FAILURE":
+                logging.critical("System status: RED")
+                sys.exit(1) 
+        
+        
+        for disk_path in config.get("disk_paths", ["/"]):
+            disk_result = check_disk(disk_path, threshold=config.get("disk_threshold"))
             full_report.append(disk_result)
         # We are launching checks
         full_report.append(check_python_version())
