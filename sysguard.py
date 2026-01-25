@@ -12,6 +12,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
     datefmt='%Y-%m-%d %H:%M:%S',
     filename='sysguard.log') 
 
+def handle_error(report_dict, msg, is_critical):
+    """Updates the report dictionary and logs the error."""
+    
+    if is_critical:
+        report_dict["status"] = "ERROR"
+        report_dict["data"]["is_critical_failure"] = True
+        logging.error(f"CRITICAL ERROR: {msg}")
+    else:
+        report_dict["status"] = "WARNING"
+        logging.warning(f"NON-CRITICAL WARNING: {msg}")
+
+    report_dict["message"] = msg
+
 def check_lvm():
     try:
         result = subprocess.run(
@@ -191,17 +204,35 @@ def check_systemd():
         logging.error("systemctl not found. Is this a Linux system?")
         return False
     
-def check_mount(path="/"): # If the path is not specified, we check the root
-    if os.path.ismount(path):
-        logging.info(f"Path {path} is a mount point")
-        return True
+def check_mount(path_str, is_critical=False):
+    """Checks if the specified path is a mount point."""
+    path = Path(path_str)
+    
+    check_mount_dict = {
+        "check_name": "check_mount",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "path": path_str,
+            "is_mounted": False,
+            "is_critical_failure": False       
+        }
+    }
+        
+    if not os.path.ismount(path_str):
+        handle_error(check_mount_dict, f"{path}: is NOT a mount point", is_critical)
     else:
-        logging.info(f"Path {path} is NOT a mount point")
-        return False
+        check_mount_dict["status"] = "OK"
+        check_mount_dict["message"] = f"{path}: is a mount point"
+        check_mount_dict["data"]["is_mounted"] = True
+        logging.info(f"{path}: is a mount point")
+
+    return check_mount_dict
 
 
 def check_directory(path_str, is_critical=False):
     """Check single directory accessibility."""
+    path = Path(path_str)
     check_directory_dict = {
         "check_name": "check_directory",
         "status": "UNKNOWN",
@@ -214,35 +245,15 @@ def check_directory(path_str, is_critical=False):
             "is_critical_failure": False       
         }
     }
-    path = Path(path_str)
-    
-    def handle_error(msg):
-        if is_critical:
-            # If it's critical, set the status to ERROR and log the error.
-            check_directory_dict["data"]["is_critical_failure"] = True
-            logging.error(f"CRITICAL ERROR: {msg}")
-            return "ERROR"
-        else:
-            # If it's not critical, the status is WARNING and we log the warning.
-            logging.warning(f"NON-CRITICAL WARNING: {msg}")
-            return "WARNING"
         
     if not path.exists():
-        check_directory_dict["status"] = handle_error(f"{path}: Does not exist")
-        check_directory_dict["data"]["exists"] = False
-        check_directory_dict["message"] = f"{path}: Does not exist"
-        logging.error(f"{path}: Does not exist")
+        handle_error(check_directory_dict, f"{path}: Does not exist", is_critical)
         
     elif not path.is_dir():
-        check_directory_dict["status"] = handle_error(f"{path}: Not a directory")
-        check_directory_dict["data"]["is_dir"] = False
-        check_directory_dict["message"] = f"{path}: Not a directory"
-        logging.error(f"{path}: Not a directory")
+        handle_error(check_directory_dict, f"{path}: Not a directory", is_critical)
+        
     elif not os.access(path, os.R_OK): # pathlib is not yet a perfect replacement for access
-        check_directory_dict["status"] = handle_error(f"{path}: Permission denied")
-        check_directory_dict["data"]["readable"] = False
-        check_directory_dict["message"] = f"{path}: Permission denied"
-        logging.error(f"{path}: Permission denied")
+        handle_error(check_directory_dict, f"{path}: Permission denied", is_critical)
     else:
         check_directory_dict["status"] = "OK"
         check_directory_dict["message"] = f"{path}: Accessible"
@@ -295,7 +306,16 @@ def main():
             dir_report = check_directory(path_str, is_critical)
             full_report.append(dir_report)
             # If the critical check fails, we stop execution (interrupt the script)
-            if dir_report["status"] == "CRITICAL_FAILURE":
+            if dir_report["data"]["is_critical_failure"]:
+                logging.critical("System status: RED")
+                sys.exit(1) 
+        mount_data = config.get("mounts", [{"path": "/", "critical": True}])
+        for mount_info in mount_data:
+            mount_str = mount_info.get("path")
+            is_critical_mount = mount_info.get("critical", False)
+            mount_report = check_mount(mount_str, is_critical_mount)
+            full_report.append(mount_report)
+            if mount_report["data"]["is_critical_failure"]:
                 logging.critical("System status: RED")
                 sys.exit(1) 
         

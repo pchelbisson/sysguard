@@ -4,6 +4,11 @@
   {"path": "/tmp", "critical": false},
   {"path": "/etc", "critical": true}
   ],
+  "mounts": [
+  {"path": "/", "critical": true},
+  {"path": "/mnt/logs", "critical": false},
+  {"path": "/mnt/fake_backup", "critical": false}
+  ],
   "disk_paths": ["/"],
   "disk_threshold": 85,
   "required_ports": [53, 2222, 80, 3306, 9999],
