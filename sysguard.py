@@ -25,30 +25,76 @@ def handle_error(report_dict, msg, is_critical):
 
     report_dict["message"] = msg
 
-def check_lvm():
+import os
+import shutil
+import subprocess
+import logging
+
+def check_lvm(threshold_gb=1.0):
+    check_lvm_dict = {
+        "check_name": "check_lvm",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "vg_name": None,
+            "free_gb": None
+        }
+    }
+
+    # Checking the availability of the utility
+    if not shutil.which("vgs"):
+        logging.warning("LVM check: vgs utility not found in PATH")
+        check_lvm_dict.update({"status": "WARNING", "message": "LVM tools not installed"})
+        return check_lvm_dict
+
+    # Permissions check (UID 0)
+    if os.getuid() != 0:
+        logging.warning("LVM check: running without root privileges")
+        check_lvm_dict.update({"status": "WARNING", "message": "Root privileges required"})
+        return check_lvm_dict
+
     try:
+        logging.debug("Running 'vgs' to check free space")
+        # Call VGS directly
         result = subprocess.run(
-            ["sudo", "vgs", "--noheadings", "-o", "vg_name,vg_free", "--units", "g"],
+            ["vgs", "--noheadings", "-o", "vg_name,vg_free", "--units", "g"],
             capture_output=True, text=True, check=True
         )
+        
         output = result.stdout.strip()
         if not output:
-            logging.info("LVM: No volume groups found")
-            return
+            logging.info("LVM check: no volume groups detected")
+            check_lvm_dict.update({"status": "OK", "message": "No volume groups found"})
+            return check_lvm_dict
         
-        # Split a string by spaces
+        # Parsing the first VG found
+        # TODo: Phase 2 — handle multiple VGs
         parts = output.split()
         vg_name = parts[0]
-        # Remove the 'g' and convert to float
         free_space = float(parts[1].replace('g', '').replace(',', '.'))
         
-        logging.info(f"LVM VG '{vg_name}': {free_space}GB free")
+        check_lvm_dict["data"].update({
+            "vg_name": vg_name,
+            "free_gb": free_space
+        })
         
-        if free_space < 1.0:
-            logging.warning(f"LVM: Low free space in VG {vg_name} ({free_space}GB)")
+        # Comparison with the threshold
+        if free_space < threshold_gb:
+            msg = f"Low free space in VG '{vg_name}': {free_space}GB (threshold: {threshold_gb}GB)"
+            logging.warning(f"LVM check: {msg}")
+            check_lvm_dict.update({"status": "WARNING", "message": msg})
+        else:
+            logging.info(f"LVM check: VG '{vg_name}' has {free_space}GB free")
+            check_lvm_dict.update({"status": "OK", "message": "Free space is sufficient"})
             
     except Exception as e:
-        logging.error(f"LVM check failed: {e}")
+        # Any error is in WARNING
+        error_msg = f"LVM check execution failed: {e}"
+        logging.error(error_msg)
+        check_lvm_dict.update({"status": "WARNING", "message": error_msg})
+
+    return check_lvm_dict
+
 
 
 def check_network(host, port):
@@ -327,15 +373,18 @@ def main():
         full_report.append(check_python_version())
         full_report.append(check_root())
         
+        lvm_threshold = config.get("lvm_threshold_gb", 1.0)
+        lvm_report = check_lvm(threshold_gb=lvm_threshold)
+        full_report.append(lvm_report)
+        
         logging.info(f"--- Checking Network Ports on {target_host} ---")
         for port in target_ports:
             net_result = check_network(target_host, port)
             full_report.append(net_result)
-
         
         errors_count = 0
         warnings_count = 0       
-        
+
         logging.info("\n--- SUMMARY REPORT ---")
 
         for report in full_report:
@@ -357,35 +406,6 @@ def main():
             logging.warning(f"\n--- ATTENTION: {warnings_count} warnings found, but checks passed ---")
         else:    
             logging.info("\n--- All checks finished successfully ---")
-        
-        #lvm_ok = check_lvm()
-        #disk_ok = check_disk("/", threshold=config.get("disk_threshold"))
-        #systemd_ok = check_systemd()
-        #network_ok = check_network(target_ports, target_host)
-        #logging.info(f"Python version check: {py_version['version']}")
-        #logging.info(f"DEBUG: Root report data is {root_result}")
-        
-        #logging.info(f"\n--- Checking Paths: {args.paths} ---")
-        #dirs_ok = check_directories(args.paths) #Checks existence and rights
-        
-        # Let's add a mount check for each path here.
-        #mounts_ok = True
-        # We check all paths that the user passed via --paths
-        #for p in args.paths:
-            #if not check_mount(p):
-                # We don't consider this a critical error for exit,
-                # but we note that not everything is smooth.
-                #mounts_ok = False
-        #logging.info(f"FINAL REPORT STRUCTURE: {full_report}")
-        # Deciding which code to exit with at the end
-        #if not all([disk_ok, dirs_ok, systemd_ok, network_ok, lvm_ok]):
-            #logging.critical("\n CRITICAL: SOME CHECKS FAILED")
-            #sys.exit(1)
-        
-        #if not mounts_ok:
-            #logging.warning("\n ADVISORY: Some paths are not mount points (this is often okay)")
-            
-        #logging.info("--- All checks passed successfully ---")
     else:
         parser.print_help()
 

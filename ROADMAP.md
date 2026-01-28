@@ -11,6 +11,8 @@
 - [ ] Standardization of the check structure (single interface)
 - [ ] Unified check result format (dict)
 - [ ] Log refactoring
+- [ ] Pytest
+- [ ] Add --config /path
 
 ### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps)
 
