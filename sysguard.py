@@ -229,26 +229,67 @@ def check_disk(path="/", threshold=90):
         logging.error(f"Disk check failed for {path}: {e}")
     return check_disk_dict
 
-
 def check_systemd():
-    """Checking system status via systemctl."""
+    """Checking system status via systemctl with structured output."""
+    report = {
+        "check_name": "check_systemd",
+        "status": "UNKNOWN",
+        "message": "",
+        "data": {
+            "state": "unknown",
+            "failed_units": [],
+            "is_linux": True
+        }
+    }
+    
     try:
         result = subprocess.run(
             ["systemctl", "is-system-running"],
             capture_output=True,
             text=True,
-            check=False # We will process the return code ourselves.
+            check=False
         )
+        
         state = result.stdout.strip()
+        report["data"]["state"] = state
+
         if state == "running":
+            report["status"] = "OK"
+            report["message"] = "System is running normally"
             logging.info("systemd: running")
-            return True
+        elif state == "degraded":
+            report["status"] = "WARNING"
+            failed_res = subprocess.run(
+                ["systemctl", "list-units", "--state=failed", "--plain", "--no-legend"],
+                capture_output=True, text=True
+            )
+            failed_units = []
+            for line in failed_res.stdout.strip().split('\n'):
+                if line.strip():
+                    parts = line.split()
+                    if parts:
+                        failed_units.append(parts[0])
+            
+            report["data"]["failed_units"] = failed_units
+            
+            if failed_units:
+                report["message"] = f"Degraded: {', '.join(failed_units)} failed"
+            else:
+                report["message"] = "System state: degraded (no specific failed units found)"
+            
+            logging.warning(f"systemd state: degraded. Failed units: {failed_units}")
         else:
-            logging.info(f" systemd state: {state} (Reason: {result.stderr.strip()})")
-            return False
+            report["status"] = "CRITICAL"
+            report["message"] = f"System state: {state}"
+
     except FileNotFoundError:
+        report["status"] = "WARNING"
+        report["message"] = "systemctl not found"
+        report["data"]["is_linux"] = False
         logging.error("systemctl not found. Is this a Linux system?")
-        return False
+    
+    return report
+
     
 def check_mount(path_str, is_critical=False):
     """Checks if the specified path is a mount point."""
@@ -372,6 +413,7 @@ def main():
         # We are launching checks
         full_report.append(check_python_version())
         full_report.append(check_root())
+        full_report.append(check_systemd())
         
         lvm_threshold = config.get("lvm_threshold_gb", 1.0)
         lvm_report = check_lvm(threshold_gb=lvm_threshold)
