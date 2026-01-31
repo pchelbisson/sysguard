@@ -1,0 +1,15 @@
+{
+  "directories": [
+    {"path": "/var/log", "critical": true},
+    {"path": "/etc", "critical": false},
+    {"path": "/tmp", "critical": false}
+  ],
+  "mounts": [
+    {"path": "/", "critical": true}
+  ],
+  "disk_paths": ["/"],
+  "disk_threshold": 85,
+  "required_ports": [53, 2222, 80, 3306, 9999],
+  "check_hosts": ["8.8.8.8"],
+  "lvm_threshold_gb": 1.0
+}

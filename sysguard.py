@@ -384,13 +384,32 @@ def check_directory(path_str, is_critical=False):
 
 def main():
     setup_logging()
-    
+    parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
+    parser.add_argument(
+    "--config",
+    default="config.json",
+    help="Path to config file (default: config.json)"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    check_parser = subparsers.add_parser("check", help="Health check")
     config = {
-    "directories": ["/var/log", "/etc"],
-    "disk_threshold": 90
-    }
+    "directories": [
+        {"path": "/var/log", "critical": False},
+        {"path": "/etc", "critical": False}
+    ],
+    "mounts": [
+        {"path": "/", "critical": True}
+    ],
+    "disk_paths": ["/"],
+    "disk_threshold": 90,
+    "check_hosts": ["127.0.0.1"],
+    "required_ports": [],
+    "lvm_threshold_gb": 1.0
+}
     
-    config_path = "config.json"
+    args = parser.parse_args()
+    config_path = args.config
+    
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
@@ -400,18 +419,13 @@ def main():
                     logging.info("Configuration loaded from config.json")
         except Exception as e:
             logging.error(f"Failed to load config.json: {e}")
+    else:
+        logging.warning(f"Config file not found: {config_path}, using defaults")
             
     target_host = config.get("check_hosts")[0] if config.get("check_hosts") else "127.0.0.1"
 
 
     target_ports = config.get("required_ports", [])
-
-    parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
-    subparsers = parser.add_subparsers(dest="command") 
-
-    check_parser = subparsers.add_parser("check", help="Health check")
-
-    args = parser.parse_args()
 
     if args.command == "check":
         full_report = []
