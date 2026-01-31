@@ -55,11 +55,6 @@ def handle_error(report_dict, msg, is_critical):
 
     report_dict["message"] = msg
 
-import os
-import shutil
-import subprocess
-import logging
-
 def check_lvm(threshold_gb=1.0):
     check_lvm_dict = {
         "check_name": "check_lvm",
@@ -382,120 +377,99 @@ def check_directory(path_str, is_critical=False):
         logging.info(f"{path}: Accessible")
     return check_directory_dict
 
-def main():
-    setup_logging()
-    parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
-    parser.add_argument(
-    "--config",
-    default="config.json",
-    help="Path to config file (default: config.json)"
-    )
-    subparsers = parser.add_subparsers(dest="command")
-    check_parser = subparsers.add_parser("check", help="Health check")
-    config = {
-    "directories": [
-        {"path": "/var/log", "critical": False},
-        {"path": "/etc", "critical": False}
-    ],
-    "mounts": [
-        {"path": "/", "critical": True}
-    ],
-    "disk_paths": ["/"],
-    "disk_threshold": 90,
-    "check_hosts": ["127.0.0.1"],
-    "required_ports": [],
-    "lvm_threshold_gb": 1.0
-}
-    
-    args = parser.parse_args()
-    config_path = args.config
+def load_config(config_path):
+    """Separate config loading logic."""
+    default_config = {
+        "directories": [{"path": "/var/log", "critical": False}],
+        "mounts": [{"path": "/", "critical": True}],
+        "disk_paths": ["/"],
+        "disk_threshold": 90,
+        "check_hosts": ["127.0.0.1"],
+        "required_ports": [],
+        "lvm_threshold_gb": 1.0
+    }
     
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
                 file_data = json.load(f)
                 if isinstance(file_data, dict):
-                    config.update(file_data)
-                    logging.info("Configuration loaded from config.json")
+                    default_config.update(file_data)
+                    logging.info(f"Configuration loaded from {config_path}")
         except Exception as e:
-            logging.error(f"Failed to load config.json: {e}")
+            logging.error(f"Failed to load config: {e}")
     else:
         logging.warning(f"Config file not found: {config_path}, using defaults")
+    return default_config
+
+def run_health_checks(config):
+    """Centralized launch of all checks."""
+    report = []
+    
+    # Directory and mount checks (with sys.exit logic)
+    for check_type in ["directories", "mounts"]:
+        items = config.get(check_type, [])
+        for item in items:
+            path = item.get("path")
+            crit = item.get("critical", False)
             
-    target_host = config.get("check_hosts")[0] if config.get("check_hosts") else "127.0.0.1"
+            res = check_directory(path, crit) if check_type == "directories" else check_mount(path, crit)
+            report.append(res)
+            
+            if res.get("data", {}).get("is_critical_failure"):
+                logging.critical(f"CRITICAL FAILURE at {path}. System status: RED")
+                sys.exit(1)
 
+    # Simple checks (drives, system, python)
+    for path in config.get("disk_paths", ["/"]):
+        report.append(check_disk(path, threshold=config.get("disk_threshold")))
+    
+    report.append(check_python_version())
+    report.append(check_root())
+    report.append(check_systemd())
+    report.append(check_lvm(threshold_gb=config.get("lvm_threshold_gb")))
 
-    target_ports = config.get("required_ports", [])
+    # Network check
+    target_host = config.get("check_hosts", ["127.0.0.1"])[0]
+    for port in config.get("required_ports", []):
+        report.append(check_network(target_host, port))
+        
+    return report
 
+def main():
+    setup_logging()
+    
+    parser = argparse.ArgumentParser(description="DevOps Utility: system guard.")
+    parser.add_argument("--config", default="config.json", help="Path to config file")
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("check", help="Health check")
+    
+    args = parser.parse_args()
+    
     if args.command == "check":
-        full_report = []
+        config = load_config(args.config)
         logging.info("--- Starting Health Check ---")
         
-        directories_data = config.get("directories", [{"path": "/", "critical": True}])
-        for dir_info in directories_data:
-            # Safely extract the path and critical flag
-            path_str = dir_info.get("path")
-            is_critical = dir_info.get("critical", False)
-            dir_report = check_directory(path_str, is_critical)
-            full_report.append(dir_report)
-            # If the critical check fails, we stop execution (interrupt the script)
-            if dir_report["data"]["is_critical_failure"]:
-                logging.critical("System status: RED")
-                sys.exit(1) 
-        mount_data = config.get("mounts", [{"path": "/", "critical": True}])
-        for mount_info in mount_data:
-            mount_str = mount_info.get("path")
-            is_critical_mount = mount_info.get("critical", False)
-            mount_report = check_mount(mount_str, is_critical_mount)
-            full_report.append(mount_report)
-            if mount_report["data"]["is_critical_failure"]:
-                logging.critical("System status: RED")
-                sys.exit(1) 
+        full_report = run_health_checks(config)
         
-        
-        for disk_path in config.get("disk_paths", ["/"]):
-            disk_result = check_disk(disk_path, threshold=config.get("disk_threshold"))
-            full_report.append(disk_result)
-        # We are launching checks
-        full_report.append(check_python_version())
-        full_report.append(check_root())
-        full_report.append(check_systemd())
-        
-        lvm_threshold = config.get("lvm_threshold_gb", 1.0)
-        lvm_report = check_lvm(threshold_gb=lvm_threshold)
-        full_report.append(lvm_report)
-        
-        logging.info(f"--- Checking Network Ports on {target_host} ---")
-        for port in target_ports:
-            net_result = check_network(target_host, port)
-            full_report.append(net_result)
-        
-        errors_count = 0
-        warnings_count = 0       
+        # Final report
+        errors = sum(1 for r in full_report if r["status"] == "ERROR")
+        warnings = sum(1 for r in full_report if r["status"] == "WARNING")
 
         logging.info("\n--- SUMMARY REPORT ---")
+        for r in full_report:
+            logging.info(f"[{r['status']}] {r['check_name']}: {r['message']}")
 
-        for report in full_report:
-            status = report.get("status")
-            name = report.get("check_name")
-            msg = report.get("message")
-            
-            logging.info(f"[{status}] {name}: {msg}")
-            
-            if status == "ERROR":
-                errors_count += 1
-            elif status == "WARNING":
-                warnings_count += 1
-                
-        if errors_count > 0:
-            logging.critical(f"\n--- FAILED: {errors_count} errors found! ---")
+        if errors > 0:
+            logging.critical(f"\n--- FAILED: {errors} errors found! ---")
             sys.exit(1)
-        elif warnings_count > 0:
-            logging.warning(f"\n--- ATTENTION: {warnings_count} warnings found, but checks passed ---")
-        else:    
-            logging.info("\n--- All checks finished successfully ---")
+        elif warnings > 0:
+            logging.warning(f"\n--- ATTENTION: {warnings} warnings found ---")
+        else:
+            logging.info("\n--- All checks passed ---")
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     
