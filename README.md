@@ -9,10 +9,11 @@ It is not intended for production use (yet).
 
 ### 🎯 Project Goals
 
-* Learn how to build a Python CLI too
+* Learn how to build a Python CLI tool
 * Practice system checks similar to real DevOps tasks
 * Work with Linux, systemd, disk usage, and permissions
 * Improve Python structure, readability, and CLI UX
+
 This is my first project using Python, and I am learning while building it.
 
 ---
@@ -21,19 +22,23 @@ This is my first project using Python, and I am learning while building it.
 Currently, the check command performs:
 * ✅ Python version check (Python 3.8+)
 * ⚠️ Root privilege detection (warning if not root)
-* 💽 Disk usage check (alerts if usage > 90%)
+* 💽 Disk usage check (alerts if usage > threshold)
 * 📁 Directory checks:
     * existence
     * directory type
     * read permissions
+    * critical flag
 * ⚙️ systemd status check (systemctl is-system-running)
 * 📦 LVM volume group free space check
-* 📍 Mount point checks
+* 📍 Mount point checks (with critical flag support)
 * 🌐 Network port availability (TCP)
-* 📝 All checks are logged using Python logging.
-Each check prints a clear status and the tool exits with:
+* 📝 Rotating file logs + console output
+
+Each check returns a unified dictionary format for future JSON reporting.
+
+Exit codes:
 * 0 — all checks passed
-* 1 — one or more checks failed
+* 1 — one or more checks failed (or critical failure)
 
 ---
 
@@ -54,35 +59,59 @@ No external dependencies.
 
 ### ⚙️ Configuration
 
-Some parameters are configured via config.json, for example:
+Parameters are configured via `config.json` (or custom path with `--config`):
 
-* directories to check
-* disk usage threshold
-* network hosts and ports
-This allows changing behavior without modifying the code.
+```json
+{
+  "directories": [
+    {"path": "/var/log", "critical": false},
+    {"path": "/etc", "critical": true}
+  ],
+  "mounts": [
+    {"path": "/", "critical": true}
+  ],
+  "disk_paths": ["/"],
+  "disk_threshold": 85,
+  "required_ports": [22, 80, 443],
+  "check_hosts": ["8.8.8.8"],
+  "lvm_threshold_gb": 1.0
+}
+```
 
 ---
 
 ### ▶️ Usage
 
 ```bash
+# Default config (config.json)
 python3 sysguard.py check
 ```
 
-Help:
 ```bash
+# Custom config file
+python3 sysguard.py --config /path/to/custom.json check
+```
+
+```bash
+#Help
 python3 sysguard.py --help
 ```
 
 ---
 
+### 🧪 Testing
+Basic pytest coverage (I plan to add more tests in the future):  
+```bash
+pytest test_sysguard.py -v
+```
+---
+
 ### 🚧 Work in Progress
 Planned improvements:
-* Database integration
-* Better output formatting
-* Config file support
-* More system checks
-* Packaging as a real CLI tool
+* JSON report output (`report.json`)
+* Database integration(SQLite)
+* Telegram/Webhook alerting
+* Dockerization & CI/CD pipeline
 
 ---
 

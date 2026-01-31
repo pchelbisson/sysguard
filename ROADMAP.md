@@ -1,6 +1,6 @@
 ## 🚀 SysGuard: DevOps Learning Roadmap 2026
 
-### 🟢 Phase 1: CLI Utility Fundamentals (Current Stage)
+### 🟢 Phase 1: CLI Utility Fundamentals
 
 - [x] **`Focus:`** Core logic and local system interaction.
 - [x] **`Base Logic:`** Develop Python modules to monitor disk usage, systemd services, and OS versions.
@@ -8,13 +8,14 @@
 - [x] **`External Configuration:`** Move thresholds and paths into a config.json or config.yaml file.
 - [x] **`Network Audit:`** Checking open ports (SSH 2222, MySQL) and auditing network interfaces.
 - [x] **`LVM Integration:`** Add a module for Logical Volume Manager (LVM) health checks (practicing subprocess and CLI parsing).
-- [ ] Standardization of the check structure (single interface)
-- [ ] Unified check result format (dict)
-- [ ] Log refactoring
-- [ ] Pytest
-- [ ] Add --config /path
+- [x] Standardization of the check structure (single interface)
+- [x] Unified check result format (dict)
+- [x] Log refactoring
+- [x] main() refactoring
+- [x] Pytest
+- [x] Add --config /path
 
-### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps)
+### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps) (Current Stage)
 
 - **`Focus:`** Turn the utility into a policy-driven system checker
 - **`Security Baseline:`**
