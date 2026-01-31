@@ -48,11 +48,8 @@ def handle_error(report_dict, msg, is_critical):
     if is_critical:
         report_dict["status"] = "ERROR"
         report_dict["data"]["is_critical_failure"] = True
-        logging.error(f"CRITICAL ERROR: {msg}")
     else:
         report_dict["status"] = "WARNING"
-        logging.warning(f"NON-CRITICAL WARNING: {msg}")
-
     report_dict["message"] = msg
 
 def check_lvm(threshold_gb=1.0):
@@ -68,27 +65,22 @@ def check_lvm(threshold_gb=1.0):
 
     # Checking the availability of the utility
     if not shutil.which("vgs"):
-        logging.warning("LVM check: vgs utility not found in PATH")
         check_lvm_dict.update({"status": "WARNING", "message": "LVM tools not installed"})
         return check_lvm_dict
 
     # Permissions check (UID 0)
     if os.getuid() != 0:
-        logging.warning("LVM check: running without root privileges")
         check_lvm_dict.update({"status": "WARNING", "message": "Root privileges required"})
         return check_lvm_dict
 
     try:
-        logging.debug("Running 'vgs' to check free space")
         # Call VGS directly
         result = subprocess.run(
             ["vgs", "--noheadings", "-o", "vg_name,vg_free", "--units", "g"],
             capture_output=True, text=True, check=True
         )
-        
         output = result.stdout.strip()
         if not output:
-            logging.info("LVM check: no volume groups detected")
             check_lvm_dict.update({"status": "OK", "message": "No volume groups found"})
             return check_lvm_dict
         
@@ -106,16 +98,13 @@ def check_lvm(threshold_gb=1.0):
         # Comparison with the threshold
         if free_space < threshold_gb:
             msg = f"Low free space in VG '{vg_name}': {free_space}GB (threshold: {threshold_gb}GB)"
-            logging.warning(f"LVM check: {msg}")
             check_lvm_dict.update({"status": "WARNING", "message": msg})
         else:
-            logging.info(f"LVM check: VG '{vg_name}' has {free_space}GB free")
             check_lvm_dict.update({"status": "OK", "message": "Free space is sufficient"})
             
     except Exception as e:
         # Any error is in WARNING
         error_msg = f"LVM check execution failed: {e}"
-        logging.error(error_msg)
         check_lvm_dict.update({"status": "WARNING", "message": error_msg})
 
     return check_lvm_dict
@@ -142,16 +131,13 @@ def check_network(host, port):
             if res == 0:
                 check_network_dict["status"] = "OK"
                 check_network_dict["message"] = f"Port {port} on {host} is OPEN"
-                logging.info(check_network_dict["message"])
             else:
                 check_network_dict["status"] = "WARNING"
                 check_network_dict["message"] = f"Port {port} on {host} is CLOSED (Code: {res})"
-                logging.warning(check_network_dict["message"])
                 
     except Exception as e:
         check_network_dict["status"] = "ERROR"
         check_network_dict["message"] = f"Connection error: {e}"
-        logging.error(f"Error checking {host}:{port} - {e}")
 
     return check_network_dict
 
@@ -160,7 +146,6 @@ def check_network(host, port):
 
 def check_python_version():
     """Сheck the installed version of Python"""
-    # We get major and minor versions (for example, 3 and 15)
     major = sys.version_info.major
     minor = sys.version_info.minor
     current_version = f"{major}.{minor}"
@@ -174,14 +159,13 @@ def check_python_version():
             "min_required": "3.8"
         }
     }
-    # Example condition: Works only on Python 3.8 and above
+
     if sys.version_info < (3, 8):
         py_version_dict["status"] = "ERROR"
         py_version_dict["message"] = f"Python {current_version} is too old (min 3.8 required)"
-        logging.error(py_version_dict["message"])
-    else:
-        logging.info(py_version_dict["message"])
+    
     return py_version_dict
+
         
     
     
@@ -200,18 +184,15 @@ def check_root():
         if euid == 0:
             check_root_dict["status"] = "OK"
             check_root_dict["message"] = "Running with root privileges"
-            logging.info(check_root_dict["message"])
             
         else:
             # We are not leaving the program, we are just warning you
             check_root_dict["status"] = "WARNING"
             check_root_dict["message"] = f"Running as non-root user (UID: {euid})"
-            logging.warning(check_root_dict["message"])
             
     except AttributeError:
         check_root_dict["status"] = "ERROR"
         check_root_dict["message"] = "System does not support UID checks (Non-POSIX OS)"
-        logging.error(check_root_dict["message"])
     return check_root_dict
 
 def check_disk(path="/", threshold=90):
@@ -242,16 +223,13 @@ def check_disk(path="/", threshold=90):
         if percent_used > threshold:            
             check_disk_dict["status"] = "WARNING"
             check_disk_dict["message"] = f"Disk usage on {path} is high: {percent_used:.1f}%"
-            logging.warning(f" Critical: Disk usage on {path} is over {threshold}!")
         else: 
             check_disk_dict["status"] = "OK"
             check_disk_dict["message"] = f"Disk space on {path} is within limits"
-            logging.info(f"Disk {path}: {used // (2**30)}GB / {total // (2**30)}GB ({percent_used:.1f}% used)")
             
     except Exception as e:       
         check_disk_dict["status"] = "ERROR"
         check_disk_dict["message"] = str(e)
-        logging.error(f"Disk check failed for {path}: {e}")
     return check_disk_dict
 
 def check_systemd():
@@ -281,7 +259,6 @@ def check_systemd():
         if state == "running":
             report["status"] = "OK"
             report["message"] = "System is running normally"
-            logging.info("systemd: running")
         elif state == "degraded":
             report["status"] = "WARNING"
             failed_res = subprocess.run(
@@ -302,7 +279,6 @@ def check_systemd():
             else:
                 report["message"] = "System state: degraded (no specific failed units found)"
             
-            logging.warning(f"systemd state: degraded. Failed units: {failed_units}")
         else:
             report["status"] = "CRITICAL"
             report["message"] = f"System state: {state}"
@@ -311,7 +287,6 @@ def check_systemd():
         report["status"] = "WARNING"
         report["message"] = "systemctl not found"
         report["data"]["is_linux"] = False
-        logging.error("systemctl not found. Is this a Linux system?")
     
     return report
 
@@ -337,7 +312,6 @@ def check_mount(path_str, is_critical=False):
         check_mount_dict["status"] = "OK"
         check_mount_dict["message"] = f"{path}: is a mount point"
         check_mount_dict["data"]["is_mounted"] = True
-        logging.info(f"{path}: is a mount point")
 
     return check_mount_dict
 
@@ -374,7 +348,6 @@ def check_directory(path_str, is_critical=False):
             "is_dir": True,
             "readable": True
         })
-        logging.info(f"{path}: Accessible")
     return check_directory_dict
 
 def load_config(config_path):
@@ -395,7 +368,6 @@ def load_config(config_path):
                 file_data = json.load(f)
                 if isinstance(file_data, dict):
                     default_config.update(file_data)
-                    logging.info(f"Configuration loaded from {config_path}")
         except Exception as e:
             logging.error(f"Failed to load config: {e}")
     else:
@@ -417,7 +389,6 @@ def run_health_checks(config):
             report.append(res)
             
             if res.get("data", {}).get("is_critical_failure"):
-                logging.critical(f"CRITICAL FAILURE at {path}. System status: RED")
                 sys.exit(1)
 
     # Simple checks (drives, system, python)
@@ -458,7 +429,10 @@ def main():
 
         logging.info("\n--- SUMMARY REPORT ---")
         for r in full_report:
-            logging.info(f"[{r['status']}] {r['check_name']}: {r['message']}")
+            level = logging.WARNING if r["status"] == "WARNING" else logging.INFO
+            if r["status"] == "ERROR":
+                level = logging.ERROR
+            logging.log(level, f"[{r['status']}] {r['check_name']}: {r['message']}")
 
         if errors > 0:
             logging.critical(f"\n--- FAILED: {errors} errors found! ---")
