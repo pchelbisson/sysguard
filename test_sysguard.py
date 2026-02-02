@@ -3,6 +3,8 @@ import sys
 from unittest.mock import patch
 from sysguard import check_python_version
 from sysguard import check_root
+from pathlib import Path
+from sysguard import check_directory
 
 def test_python_version_is_dict():
     """Checking that the function actually returns a dictionary (basic concept)"""
@@ -39,3 +41,20 @@ def test_check_root_is_warning():
         assert result["status"] == "WARNING"
         assert "non-root user" in result["message"]
         assert result["data"]["uid"] == 1000
+
+
+def test_check_directory_etc_ok():
+    """We test the real existing /etc directory (usually always available)"""
+    result = check_directory("/etc", is_critical=False)
+    
+    assert result["status"] == "OK"
+    assert result["data"]["exists"] is True
+    assert "/etc" in result["message"]
+
+def test_check_directory_not_found():
+    """Testing a non-existent path"""
+    path = "/tmp/really_weird_path_12345"
+    result = check_directory(path, is_critical=False)
+    
+    assert result["status"] == "WARNING"
+    assert "Does not exist" in result["message"]
