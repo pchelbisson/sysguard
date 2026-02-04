@@ -1,6 +1,7 @@
 import logging
 import sys
 from checks import check_disk, check_root, check_python_version, check_network, check_directory, check_mount, check_systemd, check_lvm
+from checks.security import check_ssh_config
 
 def run_health_checks(config):
     """Centralized launch of all checks."""
@@ -27,6 +28,11 @@ def run_health_checks(config):
     report.append(check_root())
     report.append(check_systemd())
     report.append(check_lvm(threshold_gb=config.get("lvm_threshold_gb")))
+    
+    ssh_path = config.get("ssh_config_path")  # None или "" → auto-detect
+    clean_path = ssh_path if ssh_path else None
+    result = check_ssh_config(clean_path)
+    report.append(result)
 
     # Network check
     target_host = config.get("check_hosts", ["127.0.0.1"])[0]

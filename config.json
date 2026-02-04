@@ -12,5 +12,6 @@
   "disk_paths": ["/"],
   "disk_threshold": 85,
   "required_ports": [53, 2222, 80, 3306, 9999],
-  "check_hosts": ["8.8.8.8"]
+  "check_hosts": ["8.8.8.8"],
+  "ssh_config_path": ""
 }
