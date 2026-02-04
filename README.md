@@ -84,17 +84,17 @@ Parameters are configured via `config.json` (or custom path with `--config`):
 
 ```bash
 # Default config (config.json)
-python3 sysguard.py check
+python3 main.py check
 ```
 
 ```bash
 # Custom config file
-python3 sysguard.py --config /path/to/custom.json check
+python3 main.py --config /path/to/custom.json check
 ```
 
 ```bash
 #Help
-python3 sysguard.py --help
+python3 main.py --help
 ```
 
 ---
