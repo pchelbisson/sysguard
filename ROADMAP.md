@@ -20,7 +20,7 @@
 - **`Focus:`** Turn the utility into a policy-driven system checker
 - **`Security Baseline:`**
   - **✅ `Definitely try:`**
-    - **SSH hardening checks:**
+    - [x] **SSH hardening checks:**
       - `PermitRootLogin`
       - `PasswordAuthentication`
       - Custom SSH port

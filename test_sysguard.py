@@ -3,10 +3,10 @@ import sys
 import os
 from pathlib import Path
 from unittest.mock import patch
-from sysguard import check_python_version
-from sysguard import check_root
-from sysguard import check_directory
-from sysguard import check_mount
+from checks.system import check_python_version
+from checks.system import check_root
+from checks.filesystem import check_directory
+from checks.filesystem import check_mount
 
 
 def test_python_version_is_dict():
