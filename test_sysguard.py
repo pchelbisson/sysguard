@@ -2,11 +2,12 @@ import pytest
 import sys
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from checks.system import check_python_version
 from checks.system import check_root
 from checks.filesystem import check_directory
 from checks.filesystem import check_mount
+from checks.system import check_systemd
 
 
 def test_python_version_is_dict():
@@ -87,3 +88,24 @@ def test_check_mount_critical_failure():
     result = check_mount("/tmp/non_existent_mount", is_critical=True)
     
     assert result["status"] == "ERROR"
+    
+
+@patch("subprocess.run")
+def test_check_systemd_degraded(mock_run):
+    """Simulating a degraded state and a failed nginx service"""
+    
+    # Configuring responses for two subprocess.run calls
+    # 1st call: Check system status
+    # 2nd Challenge: List of Fallen Units
+    mock_run.side_effect = [
+        MagicMock(stdout="degraded"),
+        MagicMock(stdout="nginx.service loaded failed failed  nginx server")
+    ]
+
+    result = check_systemd()
+
+    assert result["status"] == "WARNING"
+    assert "degraded" in result["data"]["state"]
+    assert "nginx.service" in result["data"]["failed_units"]
+    assert "nginx.service failed" in result["message"]
+
