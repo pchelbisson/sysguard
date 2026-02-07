@@ -1,4 +1,24 @@
 import os
+import logging
+import stat
+logger = logging.getLogger("sysguard")
+
+SECURITY_FILE_RULES = [
+    {
+        "path": "/etc/shadow",
+        "expected_mode": ["0640", "0600"],
+        "expected_owner": 0,
+        "expected_group": 42,  # TODO: реализовать проверку по имени 'shadow' через grp
+        "critical": True
+    },
+    {
+        "path": "/etc/passwd",
+        "expected_mode": ["0644"],
+        "expected_owner": 0,
+        "expected_group": 0,
+        "critical": True
+    }
+]
 
 # Global module constants
 SSH_STANDARD_PATHS = [
@@ -79,4 +99,77 @@ def check_ssh_config(config_path_from_json=None):
         "status": res_status,
         "message": ". ".join(messages) if messages else "SSH security settings are fine",
         "details": final_cfg
+    }
+
+
+def check_file_permissions(custom_rules=None):
+    res_status = "OK"
+    messages = []
+    details = {}
+
+    # Вспомогательная функция для эскалации статуса
+    def update_status(new_status):
+        nonlocal res_status
+        if STATUS_PRIORITY.get(new_status, 0) > STATUS_PRIORITY.get(res_status, 0):
+            res_status = new_status
+
+    all_rules = SECURITY_FILE_RULES + (custom_rules or [])
+
+    for rule in all_rules:
+        path = rule["path"]
+        is_critical = rule.get("critical", False)
+
+        if not os.path.exists(path):
+            if is_critical:
+                update_status("ERROR")
+                logger.error(f"Critical file missing: {path}")
+                messages.append(f"Missing: {path}")
+            else:
+                # Для некритичных файлов просто INFO в лог и OK в статус
+                logger.info(f"Optional file missing: {path}")
+            details[path] = "MISSING"
+            continue
+
+        try:
+            st = os.stat(path)
+            # Форматируем: 4 знака, восьмеричное, с ведущими нулями
+            actual_mode = f"{st.st_mode & 0o777:04o}"
+            actual_uid = st.st_uid
+            actual_gid = st.st_gid
+
+            # Нормализуем ожидаемые моды (чтобы и "600", и "0600" работали)
+            expected_modes = [m.replace('0o', '').zfill(4) for m in rule["expected_mode"]]
+
+            # 1. Проверка прав
+            if actual_mode not in expected_modes:
+                update_status("ERROR" if is_critical else "WARNING")
+                msg = f"{path}: insecure mode {actual_mode} (expected {expected_modes})"
+                logger.warning(msg)
+                messages.append(msg)
+
+            # 2. Проверка владельца (UID 0 — всегда root)
+            if actual_uid != rule["expected_owner"]:
+                update_status("ERROR") # Владелец системного файла не root — это всегда ERROR
+                msg = f"{path}: wrong owner UID {actual_uid}"
+                logger.error(msg)
+                messages.append(msg)
+
+            # 3. Проверка группы (если указана)
+            if rule.get("expected_group") is not None:
+                if actual_gid != rule["expected_group"]:
+                    update_status("WARNING") # Группа — обычно WARNING
+                    messages.append(f"{path}: wrong group GID {actual_gid}")
+
+            details[path] = {"mode": actual_mode, "uid": actual_uid, "gid": actual_gid}
+
+        except Exception as e:
+            update_status("ERROR")
+            logger.exception(f"Permission check failed for {path}")
+            messages.append(f"Error {path}: {str(e)}")
+
+    return {
+        "check_name": "check_file_permissions",
+        "status": res_status,
+        "message": " | ".join(messages) if messages else "Permissions are correct",
+        "details": details
     }

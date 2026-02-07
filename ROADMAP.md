@@ -24,7 +24,7 @@
       - `PermitRootLogin`
       - `PasswordAuthentication`
       - Custom SSH port
-    - **File permission checks:**
+    - [x] **File permission checks:**
       - `/etc/shadow`
       - `/etc/passwd`
       - `/root`
