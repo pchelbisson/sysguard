@@ -3,11 +3,17 @@ import sys
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from checks.system import check_python_version
-from checks.system import check_root
-from checks.filesystem import check_directory
-from checks.filesystem import check_mount
-from checks.system import check_systemd
+from checks.system import (
+    check_python_version, 
+    check_root, 
+    check_systemd
+)
+
+from checks.filesystem import (
+    check_directory, 
+    check_mount, 
+    check_disk
+)
 
 
 def test_python_version_is_dict():
@@ -109,3 +115,25 @@ def test_check_systemd_degraded(mock_run):
     assert "nginx.service" in result["data"]["failed_units"]
     assert "nginx.service failed" in result["message"]
 
+
+def test_check_disk_real_path():
+    """Checking the actual space on the root partition"""
+    result = check_disk("/", threshold=99.9) # Ставим высокий порог, чтобы точно было OK
+    
+    assert result["status"] == "OK"
+    assert result["data"]["total_gb"] > 0
+    assert isinstance(result["data"]["percent"], float)
+    assert "/" in result["message"]
+
+from unittest.mock import patch
+
+@patch("shutil.disk_usage")
+def test_check_disk_high_usage(mock_usage):
+    """Let's simulate the situation: 95 GB out of 100 GB is occupied (95%)"""
+    mock_usage.return_value = (100 * 10**9, 95 * 10**9, 5 * 10**9)
+
+    result = check_disk("/", threshold=90)
+
+    assert result["status"] == "WARNING"
+    assert result["data"]["percent"] >= 95.0
+    assert "high" in result["message"]
