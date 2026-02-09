@@ -12,7 +12,8 @@ from checks.system import (
 from checks.filesystem import (
     check_directory, 
     check_mount, 
-    check_disk
+    check_disk,
+    check_lvm
 )
 
 
@@ -125,8 +126,6 @@ def test_check_disk_real_path():
     assert isinstance(result["data"]["percent"], float)
     assert "/" in result["message"]
 
-from unittest.mock import patch
-
 @patch("shutil.disk_usage")
 def test_check_disk_high_usage(mock_usage):
     """Let's simulate the situation: 95 GB out of 100 GB is occupied (95%)"""
@@ -137,3 +136,40 @@ def test_check_disk_high_usage(mock_usage):
     assert result["status"] == "WARNING"
     assert result["data"]["percent"] >= 95.0
     assert "high" in result["message"]
+    
+
+def test_check_lvm_no_vgs_installed():
+    """Test: VGS utility is missing from the system"""
+    with patch("shutil.which", return_value=None):
+        result = check_lvm()
+        assert result["status"] == "WARNING"
+        assert "not installed" in result["message"]
+
+def test_check_lvm_no_root():
+    """Test: Run as non-root (UID 1000)"""
+    with patch("shutil.which", return_value="/usr/sbin/vgs"), \
+         patch("os.getuid", return_value=1000):
+        
+        result = check_lvm()
+        assert result["status"] == "WARNING"
+        assert "Root privileges required" in result["message"]
+
+@patch("subprocess.run")
+def test_check_lvm_success_parsing(mock_run):
+    """Test: successful parsing of vgs output (5GB free with 1GB limit)"""
+    with patch("shutil.which", return_value="/usr/sbin/vgs"), \
+         patch("os.getuid", return_value=0):
+        
+        # Simulating the output of VGS: Name_VG 5.00g
+        mock_run.return_value = MagicMock(
+            stdout="  ubuntu-vg 5.00g", 
+            returncode=0
+        )
+
+        result = check_lvm(threshold_gb=1.0)
+        
+        assert result["status"] == "OK"
+        assert result["data"]["vg_name"] == "ubuntu-vg"
+        assert result["data"]["free_gb"] == 5.0
+        assert "sufficient" in result["message"]
+
