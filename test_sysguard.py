@@ -1,8 +1,10 @@
 import pytest
 import sys
 import os
+import socket
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from checks.network import check_network
 from checks.system import (
     check_python_version, 
     check_root, 
@@ -70,9 +72,6 @@ def test_check_directory_not_found():
     assert result["status"] == "WARNING"
     assert "Does not exist" in result["message"]
     
-import os
-
-
 def test_check_mount_root_ok():
     result = check_mount("/")
     
@@ -172,4 +171,40 @@ def test_check_lvm_success_parsing(mock_run):
         assert result["data"]["vg_name"] == "ubuntu-vg"
         assert result["data"]["free_gb"] == 5.0
         assert "sufficient" in result["message"]
+        
+
+
+@patch("socket.socket")
+def test_check_network_port_open(mock_socket_class):
+    """Testing the scenario: Port is OPEN (connect_ex returns 0)"""
+    # Create a mock for a socket instance
+    mock_socket_instance = MagicMock()
+    # The context manager (with) should return our mock instance
+    mock_socket_class.return_value.__enter__.return_value = mock_socket_instance
+    
+    # Simulate a successful connection (code 0)
+    mock_socket_instance.connect_ex.return_value = 0
+
+    result = check_network("127.0.0.1", 80)
+
+    assert result["status"] == "OK"
+    assert "OPEN" in result["message"]
+    # We check that the correct host and port were called.
+    mock_socket_instance.connect_ex.assert_called_with(("127.0.0.1", 80))
+
+@patch("socket.socket")
+def test_check_network_port_closed(mock_socket_class):
+    """Testing the scenario: Port CLOSED (connect_ex returns an error, for example 111)"""
+    mock_socket_instance = MagicMock()
+    mock_socket_class.return_value.__enter__.return_value = mock_socket_instance
+    
+    # We simulate a closed port (for example, code 111 - Connection refused)
+    mock_socket_instance.connect_ex.return_value = 111
+
+    result = check_network("127.0.0.1", 9999)
+
+    assert result["status"] == "WARNING"
+    assert "CLOSED" in result["message"]
+    assert "(Code: 111)" in result["message"]
+
 
