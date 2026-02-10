@@ -7,7 +7,8 @@ from unittest.mock import patch, MagicMock
 from unittest.mock import patch, mock_open
 from checks.network import check_network
 from checks.security import (
-    check_ssh_config
+    check_ssh_config,
+    check_file_permissions
 )
 from checks.system import (
     check_python_version, 
@@ -247,3 +248,67 @@ def test_ssh_config_good_defaults():
         # But PasswordAuthentication is 'yes' by default, so there will be a WARNING
         assert result["status"] == "WARNING"
         assert "Password authentication is enabled" in result["message"]
+        
+
+def test_file_permissions_all_ok():
+    """Test: All files are in place, permissions and owners are correct"""
+    # Simulating that files exist
+    with patch("os.path.exists", return_value=True):
+        # Simulating the os.stat result
+        mock_stat = MagicMock()
+        # 0o644 for passwd, 0o640 for shadow (in octal)
+        # st_mode returns both the file type and the permissions, so we simulate only some of the permissions
+        mock_stat.st_mode = 0o100644 
+        mock_stat.st_uid = 0
+        mock_stat.st_gid = 0
+        
+        with patch("checks.security.SECURITY_FILE_RULES", []), \
+             patch("os.stat", return_value=mock_stat):
+            # To simplify the test, we will pass one custom rule so as not to depend on global ones.
+            custom_rule = [{
+                "path": "/etc/passwd",
+                "expected_mode": ["0644"],
+                "expected_owner": 0,
+                "expected_group": 0,
+                "critical": True
+            }]
+            result = check_file_permissions(custom_rules=custom_rule)
+            
+            assert result["status"] == "OK"
+            assert "Permissions are correct" in result["message"]
+
+def test_file_permissions_missing_critical():
+    """Test: Critical File Missing (ERROR)"""
+    with patch("os.path.exists", return_value=False):
+        custom_rule = [{
+            "path": "/etc/shadow",
+            "critical": True,
+            "expected_mode": ["0600"],
+            "expected_owner": 0
+        }]
+        result = check_file_permissions(custom_rules=custom_rule)
+        
+        assert result["status"] == "ERROR"
+        assert "Missing: /etc/shadow" in result["message"]
+
+def test_file_permissions_wrong_mode():
+    """Test: Incorrect permissions (e.g. 0666 instead of 0644)"""
+    with patch("os.path.exists", return_value=True):
+        mock_stat = MagicMock()
+        mock_stat.st_mode = 0o100666  # Too open rights
+        mock_stat.st_uid = 0
+        mock_stat.st_gid = 0
+        
+        with patch("os.stat", return_value=mock_stat):
+            custom_rule = [{
+                "path": "/etc/passwd",
+                "expected_mode": ["0644"],
+                "expected_owner": 0,
+                "critical": True
+            }]
+            result = check_file_permissions(custom_rules=custom_rule)
+            
+            assert result["status"] == "ERROR"
+            assert "insecure mode 0666" in result["message"]
+
+
