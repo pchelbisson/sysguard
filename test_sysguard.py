@@ -4,7 +4,11 @@ import os
 import socket
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from unittest.mock import patch, mock_open
 from checks.network import check_network
+from checks.security import (
+    check_ssh_config
+)
 from checks.system import (
     check_python_version, 
     check_root, 
@@ -208,3 +212,38 @@ def test_check_network_port_closed(mock_socket_class):
     assert "(Code: 111)" in result["message"]
 
 
+def test_ssh_config_not_found():
+    """Test: config file not found"""
+    with patch("os.path.exists", return_value=False):
+        result = check_ssh_config()
+        assert result["status"] == "ERROR"
+        assert "not found" in result["message"]
+
+def test_ssh_config_root_allowed():
+    """Test: DANGER — PermitRootLogin yes"""
+    # Simulating the contents of the sshd_config file
+    ssh_content = "PermitRootLogin yes\nPasswordAuthentication no"
+    
+    with patch("os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=ssh_content)):
+        
+        result = check_ssh_config("/fake/path")
+        
+        assert result["status"] == "ERROR"
+        assert "Root login allowed" in result["message"]
+        assert result["details"]["PermitRootLogin"] == "yes"
+
+def test_ssh_config_good_defaults():
+    """Test: Everything by default (safe)"""
+    # Empty file (SSH_DEFAULTS will work)
+    ssh_content = "# All settings are commented out"
+    
+    with patch("os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=ssh_content)):
+        
+        result = check_ssh_config("/fake/path")
+        
+        # By default we have prohibit-password, so the status is OK
+        # But PasswordAuthentication is 'yes' by default, so there will be a WARNING
+        assert result["status"] == "WARNING"
+        assert "Password authentication is enabled" in result["message"]
