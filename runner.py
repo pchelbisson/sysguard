@@ -1,7 +1,7 @@
 import logging
 import sys
 from checks import check_disk, check_root, check_python_version, check_network, check_directory, check_mount, check_systemd, check_lvm
-from checks.security import check_ssh_config, check_file_permissions
+from checks.security import check_ssh_config, check_file_permissions, check_firewall
 
 def run_health_checks(config):
     """Centralized launch of all checks."""
@@ -33,6 +33,7 @@ def run_health_checks(config):
     clean_path = ssh_path if ssh_path else None
     result = check_ssh_config(clean_path)
     report.append(check_file_permissions())
+    report.append(check_firewall())
     report.append(result)
 
     # Network check

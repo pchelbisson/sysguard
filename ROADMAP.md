@@ -28,9 +28,9 @@
       - `/etc/shadow`
       - `/etc/passwd`
       - `/root`
-    - **Warning-only checks for root execution**
+    - [x] **Warning-only checks for root execution**
   - **🟡 `That would be nice`**
-    - **Firewall status check (ufw / firewalld)**
+    - [x] **Firewall status check (ufw / firewalld)**
     - **fail2ban status**
     - **SELinux / AppArmor status (read-only)**
   - **🔵`Optional`**

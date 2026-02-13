@@ -1,6 +1,9 @@
 import os
+import re
 import logging
 import stat
+import subprocess
+import shutil
 logger = logging.getLogger("sysguard")
 
 SECURITY_FILE_RULES = [
@@ -34,6 +37,110 @@ SSH_DEFAULTS = {
 }
 
 STATUS_PRIORITY = {"OK": 0, "INFO": 0, "WARNING": 1, "ERROR": 2}
+
+
+
+def _check_ufw():
+    """
+    Checks the UFW status given the current access rights.
+    """
+    if not shutil.which("ufw"):
+        return {"available": False, "active": False, "error": "Not installed"}
+    
+    # Forming a team
+    cmd = ["ufw", "status"]
+    
+    # If we are not root, we try sudo in non-interactive mode
+    if os.geteuid() != 0:
+        # -n (non-interactive) prevents password waiting
+        cmd = ["sudo", "-n"] + cmd
+    
+    try:
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=2 
+        )
+        
+        if result.returncode != 0:
+            # Most likely, sudo asked for a password or access was denied.
+            return {"available": True, "active": False, "error": "Permission denied (sudo required)"}
+            
+        output = result.stdout.strip()
+        return {
+            "available": True, 
+            "active": "Status: active" in output, 
+            "output": output
+        }
+        
+    except subprocess.TimeoutExpired:
+        return {"available": True, "active": False, "error": "Check timed out"}
+    except Exception as e:
+        return {"available": True, "active": False, "error": str(e)}
+    
+
+def _check_iptables():
+    """
+    Checks iptables status, INPUT policy and rules presence.
+    """
+    if not shutil.which("iptables"):
+        return {
+            "available": False, 
+            "input_policy": None, 
+            "has_custom_rules": False
+        }
+    
+    # Form a command taking into account the rights (use -n for sudo)
+    cmd = ["iptables", "-L", "INPUT", "-n"]
+    if os.geteuid() != 0:
+        cmd = ["sudo", "-n"] + cmd
+    
+    try:
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=2
+        )
+        
+        if result.returncode != 0:
+            return {
+                "available": True, 
+                "input_policy": None, 
+                "has_custom_rules": False,
+                "error": "Permission denied (sudo -n failed)"
+            }
+        
+        output = result.stdout.strip()
+        if not output:
+            return {"available": True, "input_policy": None, "has_custom_rules": False}
+
+        # 1. Extract the Default Policy (ACCEPT/DROP/REJECT)
+        # Search for the pattern: Chain INPUT (policy ACCEPT)
+        policy_match = re.search(r"Chain INPUT \(policy (\w+)\)", output)
+        input_policy = policy_match.group(1) if policy_match else None
+        
+        # 2. Check for the presence of rules
+        # The output usually looks like this:
+        # Line 1: Chain INPUT (policy ACCEPT)
+        # Line 2: target prot opt ​​source destination
+        # Line 3+: ... the rules themselves ...
+        lines = [line for line in output.split("\n") if line.strip()]
+        has_custom_rules = len(lines) > 2
+        
+        return {
+            "available": True,
+            "input_policy": input_policy,
+            "has_custom_rules": has_custom_rules,
+            "output": output
+        }
+        
+    except subprocess.TimeoutExpired:
+        return {"available": True, "input_policy": None, "has_custom_rules": False, "error": "Timeout"}
+    except Exception as e:
+        return {"available": True, "input_policy": None, "has_custom_rules": False, "error": str(e)}
+
 
 def check_ssh_config(config_path_from_json=None):
     res_status = "OK"
@@ -173,3 +280,77 @@ def check_file_permissions(custom_rules=None):
         "message": " | ".join(messages) if messages else "Permissions are correct",
         "details": details
     }
+
+def check_firewall():
+    """
+    The main firewall check: UFW -> iptables cascade.
+    """
+    result = {
+        "check_name": "check_firewall",
+        "status": "UNKNOWN",
+        "message": "",
+        "details": {
+            "backend": None,
+            "active": False,
+            "default_incoming": None,
+            "has_rules": False,
+            "recommendation": ""
+        }
+    }
+    
+    # 1. Checking UFW (highest priority)
+    ufw = _check_ufw()
+    
+    if ufw.get("available") and ufw.get("active"):
+        result["status"] = "OK"
+        result["message"] = "UFW firewall is active"
+        result["details"].update({
+            "backend": "ufw",
+            "active": True
+        })
+        return result
+
+    # 2. UFW is inactive or unavailable - check iptables
+    iptables = _check_iptables()
+    
+    # If iptables returns a permissions error (for example, sudo -n didn't work)
+    if iptables.get("error") == "Permission denied":
+        result["status"] = "WARNING"
+        result["message"] = "Insufficient permissions to check firewall (run with sudo)"
+        return result
+
+    if not iptables.get("available"):
+        result["status"] = "ERROR"
+        result["message"] = "No firewall tools (UFW/iptables) found in system"
+        return result
+
+    # 3. Analyzing the state of iptables
+    result["details"]["backend"] = "iptables"
+    result["details"]["default_incoming"] = iptables["input_policy"]
+    result["details"]["has_rules"] = iptables["has_custom_rules"]
+    
+    policy = iptables["input_policy"]
+    has_rules = iptables["has_custom_rules"]
+
+    if policy == "DROP":
+        result["status"] = "OK"
+        result["message"] = "iptables protection active (Policy: DROP)"
+        result["details"]["active"] = True
+    elif policy == "ACCEPT":
+        if has_rules:
+            # There are rules, but a permissive policy is suspicious (WARNING)
+            result["status"] = "WARNING"
+            result["message"] = "iptables policy is ACCEPT, but some rules exist"
+            result["details"]["active"] = True
+            result["details"]["recommendation"] = "Consider changing default policy to DROP"
+        else:
+            # There are no rules and the policy allows everything - this is a hole (ERROR/WARNING)
+            result["status"] = "WARNING"
+            result["message"] = "No active firewall protection detected (Policy: ACCEPT)"
+            result["details"]["active"] = False
+            result["details"]["recommendation"] = "Enable UFW or set iptables INPUT policy to DROP"
+    else:
+        result["status"] = "UNKNOWN"
+        result["message"] = f"Unexpected iptables policy: {policy}"
+
+    return result
