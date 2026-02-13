@@ -25,29 +25,42 @@ def check_python_version():
     
     return py_version_dict
 
+import os
+
 def check_root():
-    """Checking root privileges"""
-    check_root_dict = {"check_name": "check_root", 
-                       "status": "UNKNOWN", 
-                       "message": "", 
-                       "data": {"uid": None}}
+    """Checking root privileges (Security-centric version)"""
+    check_root_dict = {
+        "check_name": "check_root", 
+        "status": "UNKNOWN", 
+        "message": "", 
+        "details": {"uid": None, "recommendation": ""}
+    }
+    
     try:
         euid = os.geteuid()
-        check_root_dict["data"]["uid"] = euid
+        check_root_dict["details"]["uid"] = euid
         
         if euid == 0:
-            check_root_dict["status"] = "OK"
-            check_root_dict["message"] = "Running with root privileges"
+            # From a safety standpoint, this is a WARNING.
+            check_root_dict["status"] = "WARNING"
+            check_root_dict["message"] = "Application is running with ROOT privileges"
+            check_root_dict["details"]["recommendation"] = (
+                "For better security, run as a non-root user. "
+                "Note: some security checks (SSH, file permissions) might fail without root."
+            )
             
         else:
-            # We are not leaving the program, we are just warning you
-            check_root_dict["status"] = "WARNING"
-            check_root_dict["message"] = f"Running as non-root user (UID: {euid})"
+            # Safe Startup Mode
+            check_root_dict["status"] = "OK"
+            check_root_dict["message"] = f"Running as a standard user (UID: {euid})"
+            check_root_dict["details"]["recommendation"] = "Security-wise this is optimal."
             
     except AttributeError:
         check_root_dict["status"] = "ERROR"
-        check_root_dict["message"] = "System does not support UID checks (Non-POSIX OS)"
+        check_root_dict["message"] = "Non-POSIX environment detected (UID check not supported)"
+        
     return check_root_dict
+
 
 def check_systemd():
     """Checking system status via systemctl with structured output."""

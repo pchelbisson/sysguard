@@ -8,7 +8,7 @@ SECURITY_FILE_RULES = [
         "path": "/etc/shadow",
         "expected_mode": ["0640", "0600"],
         "expected_owner": 0,
-        "expected_group": 42,  # TODO: реализовать проверку по имени 'shadow' через grp
+        "expected_group": 42,  # TODO: implement a check named 'shadow' via grp
         "critical": True
     },
     {
@@ -51,7 +51,7 @@ def check_ssh_config(config_path_from_json=None):
         return {
             "check_name": "check_ssh_config",
             "status": "ERROR",
-            "message": "sshd_config не найден",
+            "message": "sshd_config not found",
             "details": {}
         }
 
@@ -107,7 +107,7 @@ def check_file_permissions(custom_rules=None):
     messages = []
     details = {}
 
-    # Вспомогательная функция для эскалации статуса
+    # Helper function for status escalation
     def update_status(new_status):
         nonlocal res_status
         if STATUS_PRIORITY.get(new_status, 0) > STATUS_PRIORITY.get(res_status, 0):
@@ -125,39 +125,39 @@ def check_file_permissions(custom_rules=None):
                 logger.error(f"Critical file missing: {path}")
                 messages.append(f"Missing: {path}")
             else:
-                # Для некритичных файлов просто INFO в лог и OK в статус
+                # For non-critical files, simply INFO in the log and OK in the status
                 logger.info(f"Optional file missing: {path}")
             details[path] = "MISSING"
             continue
 
         try:
             st = os.stat(path)
-            # Форматируем: 4 знака, восьмеричное, с ведущими нулями
+            # Format: 4 characters, octal, with leading zeros
             actual_mode = f"{st.st_mode & 0o777:04o}"
             actual_uid = st.st_uid
             actual_gid = st.st_gid
 
-            # Нормализуем ожидаемые моды (чтобы и "600", и "0600" работали)
+            # Let's normalize the expected modes (so that both "600" and "0600" work)
             expected_modes = [m.replace('0o', '').zfill(4) for m in rule["expected_mode"]]
 
-            # 1. Проверка прав
+            # 1. Checking rights
             if actual_mode not in expected_modes:
                 update_status("ERROR" if is_critical else "WARNING")
                 msg = f"{path}: insecure mode {actual_mode} (expected {expected_modes})"
                 logger.warning(msg)
                 messages.append(msg)
 
-            # 2. Проверка владельца (UID 0 — всегда root)
+            # 2. Owner check (UID 0 is always root)
             if actual_uid != rule["expected_owner"]:
-                update_status("ERROR") # Владелец системного файла не root — это всегда ERROR
+                update_status("ERROR") # The owner of a system file is not root - this is always an ERROR
                 msg = f"{path}: wrong owner UID {actual_uid}"
                 logger.error(msg)
                 messages.append(msg)
 
-            # 3. Проверка группы (если указана)
+            # 3. Check the group (if specified)
             if rule.get("expected_group") is not None:
                 if actual_gid != rule["expected_group"]:
-                    update_status("WARNING") # Группа — обычно WARNING
+                    update_status("WARNING")
                     messages.append(f"{path}: wrong group GID {actual_gid}")
 
             details[path] = {"mode": actual_mode, "uid": actual_uid, "gid": actual_gid}

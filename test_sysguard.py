@@ -36,29 +36,39 @@ def test_python_status_value():
     assert result["status"] in ["OK", "ERROR", "WARNING"]
 
 
-def test_check_root_is_ok():
-    """Testing the scenario: user - ROOT (UID 0)"""
-    # We 'override' the os.geteuid function so that it always returns 0
+def test_check_root_is_warning_when_root():
+    """Testing the scenario: launch from ROOT (UID 0) -> expect WARNING"""
     with patch("os.geteuid") as mock_geteuid:
         mock_geteuid.return_value = 0
         
         result = check_root()
         
-        assert result["status"] == "OK"
-        assert "root privileges" in result["message"]
-        assert result["data"]["uid"] == 0
+        # Now root is a WARNING from a security point of view
+        assert result["status"] == "WARNING"
+        assert "ROOT privileges" in result["message"]
+        assert result["details"]["uid"] == 0
+        assert "recommendation" in result["details"]
 
-def test_check_root_is_warning():
-    """Testing the scenario: regular user (UID 1000)"""
-    # We simulate a regular user
+def test_check_root_is_ok_when_non_root():
+    """Testing the scenario: regular user (UID 1000) -> expect OK"""
     with patch("os.geteuid") as mock_geteuid:
         mock_geteuid.return_value = 1000
         
         result = check_root()
         
-        assert result["status"] == "WARNING"
-        assert "non-root user" in result["message"]
-        assert result["data"]["uid"] == 1000
+        # Standard user is safe OK
+        assert result["status"] == "OK"
+        assert "standard user" in result["message"]
+        assert result["details"]["uid"] == 1000
+
+def test_check_root_os_error():
+    """Testing the scenario: The system does not support UID checking (AttributeError)"""
+    with patch("os.geteuid", side_effect=AttributeError):
+        result = check_root()
+        
+        assert result["status"] == "ERROR"
+        assert "Non-POSIX environment" in result["message"]
+
 
 
 def test_check_directory_etc_ok():
