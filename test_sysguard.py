@@ -8,7 +8,8 @@ from unittest.mock import patch, mock_open
 from checks.network import check_network
 from checks.security import (
     check_ssh_config,
-    check_file_permissions
+    check_file_permissions,
+    check_firewall
 )
 from checks.system import (
     check_python_version, 
@@ -320,5 +321,53 @@ def test_file_permissions_wrong_mode():
             
             assert result["status"] == "ERROR"
             assert "insecure mode 0666" in result["message"]
+            
+
+def test_firewall_ufw_active():
+    """Scenario 1: UFW is enabled"""
+    with patch("checks.security._check_ufw") as mock_ufw:
+        mock_ufw.return_value = {"available": True, "active": True}
+        
+        # We don't care what's in iptables as long as UFW is active.
+        result = check_firewall()
+        
+        assert result["status"] == "OK"
+        assert "UFW" in result["message"]
+        assert result["details"]["backend"] == "ufw"
+
+def test_firewall_fallback_to_iptables_secure():
+    """Scenario 2: UFW is disabled, but iptables is in DROP (safe)"""
+    with patch("checks.security._check_ufw") as mock_ufw, \
+         patch("checks.security._check_iptables") as mock_ipt:
+        
+        mock_ufw.return_value = {"available": True, "active": False}
+        mock_ipt.return_value = {
+            "available": True, 
+            "input_policy": "DROP", 
+            "has_custom_rules": False
+        }
+        
+        result = check_firewall()
+        
+        assert result["status"] == "OK"
+        assert "iptables" in result["message"]
+        assert "DROP" in result["message"]
+
+def test_firewall_unprotected():
+    """Scenario 3: All Off (ACCEPT) - Waiting for WARNING"""
+    with patch("checks.security._check_ufw") as mock_ufw, \
+         patch("checks.security._check_iptables") as mock_ipt:
+        
+        mock_ufw.return_value = {"available": True, "active": False}
+        mock_ipt.return_value = {
+            "available": True, 
+            "input_policy": "ACCEPT", 
+            "has_custom_rules": False
+        }
+        
+        result = check_firewall()
+        
+        assert result["status"] == "WARNING"
+        assert "No active firewall" in result["message"]
 
 
