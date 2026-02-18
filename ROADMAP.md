@@ -31,7 +31,7 @@
     - [x] **Warning-only checks for root execution**
   - **🟡 `That would be nice`**
     - [x] **Firewall status check (ufw / firewalld)**
-    - **fail2ban status**
+    - [x] **fail2ban status**
     - **SELinux / AppArmor status (read-only)**
   - **🔵`Optional`**
     - **Simple secrets detection (regex-based, read-only)**

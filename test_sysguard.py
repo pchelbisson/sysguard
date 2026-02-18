@@ -9,7 +9,8 @@ from checks.network import check_network
 from checks.security import (
     check_ssh_config,
     check_file_permissions,
-    check_firewall
+    check_firewall,
+    check_fail2ban
 )
 from checks.system import (
     check_python_version, 
@@ -369,5 +370,42 @@ def test_firewall_unprotected():
         
         assert result["status"] == "WARNING"
         assert "No active firewall" in result["message"]
+        
+        
+def test_fail2ban_not_installed():
+    with patch("shutil.which", return_value=None):
+        result = check_fail2ban()
+
+        assert result["status"] == "WARNING"
+        assert "not installed" in result["message"]
+        assert result["details"]["available"] is False
+
+
+def test_fail2ban_active_ok():
+    with patch("shutil.which", return_value="/usr/bin/fail2ban-client"), \
+         patch("os.geteuid", return_value=0), \
+         patch("subprocess.run") as mock_run:
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="Status\n|- Number of jail: 1")
+
+        result = check_fail2ban()
+
+        assert result["status"] == "OK"
+        assert "active" in result["message"]
+        assert result["details"]["active"] is True
+
+
+def test_fail2ban_installed_but_not_running():
+    with patch("shutil.which", return_value="/usr/bin/fail2ban-client"), \
+         patch("os.geteuid", return_value=0), \
+         patch("subprocess.run") as mock_run:
+
+        mock_run.return_value = MagicMock(returncode=255, stdout="", stderr="Failed to access socket path")
+
+        result = check_fail2ban()
+
+        assert result["status"] == "WARNING"
+        assert "not running" in result["message"]
+        assert result["details"]["available"] is True
 
 

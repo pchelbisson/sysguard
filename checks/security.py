@@ -354,3 +354,64 @@ def check_firewall():
         result["message"] = f"Unexpected iptables policy: {policy}"
 
     return result
+
+def check_fail2ban():
+    """
+    Checks fail2ban availability and running status.
+    """
+    result = {
+        "check_name": "check_fail2ban",
+        "status": "UNKNOWN",
+        "message": "",
+        "details": {
+            "available": False,
+            "active": False,
+            "backend": "fail2ban-client",
+            "raw_status": ""
+        }
+    }
+
+    if not shutil.which("fail2ban-client"):
+        result["status"] = "WARNING"
+        result["message"] = "fail2ban is not installed"
+        return result
+
+    cmd = ["fail2ban-client", "status"]
+    if os.geteuid() != 0:
+        cmd = ["sudo", "-n"] + cmd
+
+    try:
+        process = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+    except subprocess.TimeoutExpired:
+        result["status"] = "WARNING"
+        result["message"] = "fail2ban status check timed out"
+        result["details"]["available"] = True
+        return result
+    except Exception as e:
+        result["status"] = "ERROR"
+        result["message"] = f"fail2ban check failed: {str(e)}"
+        result["details"]["available"] = True
+        return result
+
+    output = (process.stdout or process.stderr or "").strip()
+    result["details"]["available"] = True
+    result["details"]["raw_status"] = output
+
+    if process.returncode != 0:
+        if "sorry, try again" in output.lower() or "permission denied" in output.lower():
+            result["status"] = "WARNING"
+            result["message"] = "Insufficient permissions to check fail2ban (run with sudo)"
+        else:
+            result["status"] = "WARNING"
+            result["message"] = "fail2ban is installed but not running"
+        return result
+
+    if "Number of jail:" in output:
+        result["status"] = "OK"
+        result["message"] = "fail2ban is active"
+        result["details"]["active"] = True
+    else:
+        result["status"] = "WARNING"
+        result["message"] = "fail2ban returned unexpected status output"
+
+    return result
