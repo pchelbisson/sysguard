@@ -32,8 +32,7 @@
   - **🟡 `That would be nice`**
     - [x] **Firewall status check (ufw / firewalld)**
     - [x] **fail2ban status**
-    - **Checking autostart and persistence (read-only)**
-      - Suspicious unit files in systemd, cron (`/etc/cron*`) with world-writable bits.
+    - [x] **Checking autostart and persistence (read-only)**
     - **SELinux / AppArmor status (read-only)**
   - **🔵`Optional`**
     - **Simple secrets detection (regex-based, read-only)**

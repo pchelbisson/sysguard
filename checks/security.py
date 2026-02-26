@@ -4,6 +4,7 @@ import logging
 import stat
 import subprocess
 import shutil
+from pathlib import Path
 logger = logging.getLogger("sysguard")
 
 SECURITY_FILE_RULES = [
@@ -37,6 +38,26 @@ SSH_DEFAULTS = {
 }
 
 STATUS_PRIORITY = {"OK": 0, "INFO": 0, "WARNING": 1, "ERROR": 2}
+
+SYSTEMD_UNIT_DIRS = [
+    "/etc/systemd/system",
+    "/usr/lib/systemd/system",
+    "/lib/systemd/system"
+]
+
+SYSTEMD_UNIT_SUFFIXES = (
+    ".service",
+    ".socket",
+    ".timer",
+    ".target",
+    ".path",
+    ".mount",
+    ".automount",
+    ".swap",
+    ".slice"
+)
+
+CRON_PATH_GLOB = "/etc/cron*"
 
 
 
@@ -413,5 +434,67 @@ def check_fail2ban():
     else:
         result["status"] = "WARNING"
         result["message"] = "fail2ban returned unexpected status output"
+
+    return result
+
+
+def check_autostart_permissions():
+    """Detect world-writable systemd/cron files that may allow persistence abuse."""
+    result = {
+        "check_name": "check_autostart_permissions",
+        "status": "OK",
+        "message": "No suspicious world-writable autostart files found",
+        "details": {
+            "systemd_world_writable": [],
+            "cron_world_writable": []
+        }
+    }
+
+    systemd_hits = []
+    cron_hits = []
+
+    for unit_dir in SYSTEMD_UNIT_DIRS:
+        if not os.path.isdir(unit_dir):
+            continue
+
+        for root, _, files in os.walk(unit_dir):
+            for file_name in files:
+                if not file_name.endswith(SYSTEMD_UNIT_SUFFIXES):
+                    continue
+
+                file_path = os.path.join(root, file_name)
+                try:
+                    if os.stat(file_path).st_mode & stat.S_IWOTH:
+                        systemd_hits.append(file_path)
+                except OSError:
+                    continue
+
+    for cron_path in Path("/etc").glob("cron*"):
+        try:
+            cron_stat = os.stat(cron_path)
+        except OSError:
+            continue
+
+        if cron_stat.st_mode & stat.S_IWOTH:
+            cron_hits.append(str(cron_path))
+
+        if os.path.isdir(cron_path):
+            for root, _, files in os.walk(cron_path):
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
+                    try:
+                        if os.stat(file_path).st_mode & stat.S_IWOTH:
+                            cron_hits.append(file_path)
+                    except OSError:
+                        continue
+
+    result["details"]["systemd_world_writable"] = sorted(systemd_hits)
+    result["details"]["cron_world_writable"] = sorted(cron_hits)
+
+    if systemd_hits or cron_hits:
+        result["status"] = "WARNING"
+        result["message"] = (
+            "World-writable autostart entries detected in systemd/cron paths"
+        )
 
     return result

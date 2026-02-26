@@ -21,7 +21,7 @@ This is my first project using Python, and I am learning while building it.
 ### 🔍 What SysGuard Does
 Currently, the check command performs:
 * ✅ Python version check (Python 3.8+)
-* ⚠️ Root privilege detection (warning if not root)
+* ⚠️ Root privilege detection (warning if running as root)
 * 💽 Disk usage check (alerts if usage > threshold)
 * 📁 Directory checks:
     * existence
@@ -32,6 +32,14 @@ Currently, the check command performs:
 * 📦 LVM volume group free space check
 * 📍 Mount point checks (with critical flag support)
 * 🌐 Network port availability (TCP)
+* 🔐 SSH hardening checks (`sshd_config`):
+    * `PermitRootLogin`
+    * `PasswordAuthentication`
+    * `Port`
+* 🗂️ Security file permission checks (`/etc/shadow`, `/etc/passwd`)
+* 🔥 Firewall status checks (UFW with iptables fallback)
+* 🚫 fail2ban availability and running status checks
+* 🔁 Autostart persistence hygiene check (read-only): world-writable files in systemd units and `/  etc/cron*`
 * 📝 Rotating file logs + console output
 
 Each check returns a unified dictionary format for future JSON reporting.
@@ -49,6 +57,7 @@ Standard Python libraries only:
 * os — permissions, UID checks
 * pathlib — filesystem paths
 * shutil — disk usage
+* stat — checking world-writable permission bits
 * subprocess — systemd interaction
 * socket — network connectivity and TCP port scanning
 * json — configuration file parsing and data management
@@ -74,9 +83,14 @@ Parameters are configured via `config.json` (or custom path with `--config`):
   "disk_threshold": 85,
   "required_ports": [22, 80, 443],
   "check_hosts": ["8.8.8.8"],
-  "lvm_threshold_gb": 1.0
+  "lvm_threshold_gb": 1.0,
+  "ssh_config_path": "/etc/ssh/sshd_config"
 }
 ```
+
+Notes:
+* `check_hosts`: currently only the first host in the list is used for port checks.
+* `ssh_config_path` is optional; if omitted, SysGuard auto-detects standard `sshd_config` locations.
 
 ---
 

@@ -2,6 +2,7 @@ import pytest
 import sys
 import os
 import socket
+import stat
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from unittest.mock import patch, mock_open
@@ -10,7 +11,8 @@ from checks.security import (
     check_ssh_config,
     check_file_permissions,
     check_firewall,
-    check_fail2ban
+    check_fail2ban,
+    check_autostart_permissions
 )
 from checks.system import (
     check_python_version, 
@@ -409,3 +411,43 @@ def test_fail2ban_installed_but_not_running():
         assert result["details"]["available"] is True
 
 
+def test_autostart_permissions_clean():
+    with patch("checks.security.os.path.isdir", return_value=False), \
+         patch("checks.security.Path.glob", return_value=[]):
+        result = check_autostart_permissions()
+
+        assert result["status"] == "OK"
+        assert result["details"]["systemd_world_writable"] == []
+        assert result["details"]["cron_world_writable"] == []
+
+
+def test_autostart_permissions_detects_world_writable_entries():
+    def fake_stat(path):
+        st = MagicMock()
+        if "bad.service" in str(path) or "cron.bad" in str(path):
+            st.st_mode = stat.S_IWOTH
+        else:
+            st.st_mode = 0
+        return st
+
+    with patch("checks.security.os.path.isdir", return_value=True), \
+         patch("checks.security.os.walk") as mock_walk, \
+         patch("checks.security.Path.glob", return_value=[Path("/etc/cron.d"), Path("/etc/cron.bad")]), \
+         patch("checks.security.os.stat", side_effect=fake_stat):
+
+        def fake_walk(path):
+            path = str(path)
+            if path == "/etc/systemd/system":
+                return [("/etc/systemd/system", [], ["bad.service", "ok.service"])]
+            if path == "/etc/cron.d":
+                return [("/etc/cron.d", [], ["cron.bad", "cron.ok"])]
+            return []
+
+        mock_walk.side_effect = fake_walk
+
+        result = check_autostart_permissions()
+
+        assert result["status"] == "WARNING"
+        assert "/etc/systemd/system/bad.service" in result["details"]["systemd_world_writable"]
+        assert "/etc/cron.d/cron.bad" in result["details"]["cron_world_writable"]
+        assert "/etc/cron.bad" in result["details"]["cron_world_writable"]

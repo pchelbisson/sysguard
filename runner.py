@@ -1,7 +1,13 @@
 import logging
 import sys
 from checks import check_disk, check_root, check_python_version, check_network, check_directory, check_mount, check_systemd, check_lvm
-from checks.security import check_ssh_config, check_file_permissions, check_firewall, check_fail2ban
+from checks.security import (
+    check_ssh_config,
+    check_file_permissions,
+    check_firewall,
+    check_fail2ban,
+    check_autostart_permissions
+)
 
 def run_health_checks(config):
     """Centralized launch of all checks."""
@@ -35,6 +41,7 @@ def run_health_checks(config):
     report.append(check_file_permissions())
     report.append(check_firewall())
     report.append(check_fail2ban())
+    report.append(check_autostart_permissions())
     report.append(result)
 
     # Network check
