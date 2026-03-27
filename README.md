@@ -1,74 +1,77 @@
-## SysGuard — System Health Check CLI (Work in Progress)
-SysGuard is a simple Python CLI utility for basic Linux system health checks.
+# SysGuard — Linux System Health & Security Baseline CLI
 
-### ⚠️ Work in Progress
-This project is under active development and is created as a learning project.
-It is not intended for production use (yet).
+SysGuard is a Python CLI utility for **read-only** Linux system checks.
+It helps you run a quick host baseline for filesystem, system state, network, and basic security posture.
 
----
-
-### 🎯 Project Goals
-
-* Learn how to build a Python CLI tool
-* Practice system checks similar to real DevOps tasks
-* Work with Linux, systemd, disk usage, and permissions
-* Improve Python structure, readability, and CLI UX
-
-This is my first project using Python, and I am learning while building it.
+> ⚠️ Status: learning project / work in progress.  
+> Not intended for production use without additional hardening and CI policy gates.
 
 ---
 
-### 🔍 What SysGuard Does
-Currently, the check command performs:
-* ✅ Python version check (Python 3.8+)
-* ⚠️ Root privilege detection (warning if running as root)
-* 💽 Disk usage check (alerts if usage > threshold)
-* 📁 Directory checks:
-    * existence
-    * directory type
-    * read permissions
-    * critical flag
-* ⚙️ systemd status check (systemctl is-system-running)
-* 📦 LVM volume group free space check
-* 📍 Mount point checks (with critical flag support)
-* 🌐 Network port availability (TCP)
-* 🔐 SSH hardening checks (`sshd_config`):
-    * `PermitRootLogin`
-    * `PasswordAuthentication`
-    * `Port`
-* 🗂️ Security file permission checks (`/etc/shadow`, `/etc/passwd`)
-* 🔥 Firewall status checks (UFW with iptables fallback)
-* 🚫 fail2ban availability and running status checks
-* 🔁 Autostart persistence hygiene check (read-only): world-writable files in systemd units and `/  etc/cron*`
-* 📝 Rotating file logs + console output
+## Why this project exists
 
-Each check returns a unified dictionary format for future JSON reporting.
-
-Exit codes:
-* 0 — all checks passed
-* 1 — one or more checks failed (or critical failure)
+SysGuard is designed to practice practical DevOps skills:
+- building maintainable CLI tooling,
+- collecting system signals from Linux hosts,
+- normalizing checks into a unified result format,
+- preparing data for future reporting/automation.
 
 ---
 
-### 🧰 Technologies & Libraries Used
-Standard Python libraries only:
-* argparse — CLI arguments
-* sys — exit codes, version info
-* os — permissions, UID checks
-* pathlib — filesystem paths
-* shutil — disk usage
-* stat — checking world-writable permission bits
-* subprocess — systemd interaction
-* socket — network connectivity and TCP port scanning
-* json — configuration file parsing and data management
-* logging — structured event tracking and status reporting
-No external dependencies.
+## Current capabilities
+
+`python3 main.py check` currently includes:
+
+### System & runtime checks
+- Python version compatibility check.
+- Root execution detection (warning-only).
+- `systemd` overall state check.
+
+### Filesystem checks
+- Disk usage threshold check.
+- Directory checks (exists/type/readable + critical flag).
+- Mount-point checks (with critical flag).
+- LVM free space check (when tools are available).
+
+### Network checks
+- TCP port checks against configured host/ports.
+
+### Security baseline checks (read-only)
+- SSH hardening config checks:
+  - `PermitRootLogin`
+  - `PasswordAuthentication`
+  - custom SSH `Port`
+- Sensitive file permission checks (`/etc/shadow`, `/etc/passwd`).
+- Firewall status check (UFW with iptables fallback logic).
+- fail2ban availability/running status.
+- Autostart/persistence hygiene: world-writable entries in systemd/cron paths.
+- SELinux / AppArmor status detection.
+
+### Logging & result format
+- Rotating logs + console logs.
+- Each check returns a unified dictionary-like structure for aggregation.
 
 ---
 
-### ⚙️ Configuration
+## Exit codes
 
-Parameters are configured via `config.json` (or custom path with `--config`):
+- `0` — no `ERROR` checks.
+- `1` — one or more checks returned `ERROR` (or critical failure path).
+
+---
+
+## Exit codes
+
+- `0` — no `ERROR` checks.
+- `1` — one or more checks returned `ERROR` (or critical failure path).
+
+---
+
+## Configuration
+
+Default config file: `config.json` (or pass custom path via `--config`).
+
+Example:
 
 ```json
 {
@@ -89,46 +92,51 @@ Parameters are configured via `config.json` (or custom path with `--config`):
 ```
 
 Notes:
-* `check_hosts`: currently only the first host in the list is used for port checks.
-* `ssh_config_path` is optional; if omitted, SysGuard auto-detects standard `sshd_config` locations.
+- For network checks, only the first host from `check_hosts` is used currently.
+- `ssh_config_path` is optional; when omitted, SysGuard tries standard `sshd_config` paths
 
 ---
 
-### ▶️ Usage
+## Usage
 
 ```bash
-# Default config (config.json)
+# Run checks with default config.json
 python3 main.py check
 ```
 
 ```bash
-# Custom config file
+# Run checks with a custom config file
 python3 main.py --config /path/to/custom.json check
 ```
 
 ```bash
-#Help
+# Help
 python3 main.py --help
 ```
 
 ---
 
-### 🧪 Testing
-Basic pytest coverage (I plan to add more tests in the future):  
+## Testing
+
 ```bash
-pytest test_sysguard.py -v
+pytest -q
 ```
----
-
-### 🚧 Work in Progress
-Planned improvements:
-* JSON report output (`report.json`)
-* Database integration(SQLite)
-* Telegram/Webhook alerting
-* Dockerization & CI/CD pipeline
 
 ---
 
-### 📌 Disclaimer
-This project is created for learning purposes as part of my DevOps journey.
-Feedback and suggestions are welcome.
+## Roadmap focus (Phase 2)
+
+The current phase focuses on:
+- policy-driven checks,
+- machine-readable reporting improvements,
+- secrets handling hygiene,
+- quality gates for check schema and smoke e2e runs.
+
+See details in [`ROADMAP.md`](./ROADMAP.md).
+
+---
+
+## Disclaimer
+
+This repository is part of a DevOps learning journey.  
+Feedback, issues, and suggestions are welcome.
