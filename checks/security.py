@@ -58,6 +58,9 @@ SYSTEMD_UNIT_SUFFIXES = (
 )
 
 CRON_PATH_GLOB = "/etc/cron*"
+APPARMOR_PROFILES_PATH = "/sys/kernel/security/apparmor/profiles"
+SELINUX_ENFORCE_PATH = "/sys/fs/selinux/enforce"
+SELINUX_CONFIG_PATH = "/etc/selinux/config"
 
 
 
@@ -496,5 +499,92 @@ def check_autostart_permissions():
         result["message"] = (
             "World-writable autostart entries detected in systemd/cron paths"
         )
+
+    return result
+
+def check_mandatory_access_control():
+    """
+    Read-only check for host MAC controls (SELinux / AppArmor).
+    """
+    result = {
+        "check_name": "check_mandatory_access_control",
+        "status": "WARNING",
+        "message": "SELinux/AppArmor status could not be detected",
+        "details": {
+            "selinux": {"available": False, "enabled": False, "mode": "unknown"},
+            "apparmor": {"available": False, "enabled": False, "mode": "unknown"},
+            "recommendation": "Enable SELinux or AppArmor for stronger host hardening"
+        }
+    }
+
+    selinux_available = os.path.exists(SELINUX_ENFORCE_PATH) or os.path.exists(SELINUX_CONFIG_PATH)
+    if selinux_available:
+        result["details"]["selinux"]["available"] = True
+        try:
+            if os.path.exists(SELINUX_ENFORCE_PATH):
+                with open(SELINUX_ENFORCE_PATH, "r", encoding="utf-8") as f:
+                    enforce_value = f.read().strip()
+                if enforce_value == "1":
+                    result["details"]["selinux"]["enabled"] = True
+                    result["details"]["selinux"]["mode"] = "enforcing"
+                elif enforce_value == "0":
+                    result["details"]["selinux"]["enabled"] = True
+                    result["details"]["selinux"]["mode"] = "permissive"
+            elif os.path.exists(SELINUX_CONFIG_PATH):
+                with open(SELINUX_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    for line in f:
+                        raw_line = line.strip().lower()
+                        if not raw_line or raw_line.startswith("#"):
+                            continue
+                        if raw_line.startswith("selinux="):
+                            mode = raw_line.split("=", 1)[1].strip()
+                            result["details"]["selinux"]["mode"] = mode
+                            if mode in ("enforcing", "permissive"):
+                                result["details"]["selinux"]["enabled"] = True
+                            break
+        except OSError as e:
+            result["details"]["selinux"]["mode"] = f"error: {str(e)}"
+
+    apparmor_available = os.path.exists(APPARMOR_PROFILES_PATH) or shutil.which("aa-status")
+    if apparmor_available:
+        result["details"]["apparmor"]["available"] = True
+        try:
+            if os.path.exists(APPARMOR_PROFILES_PATH):
+                with open(APPARMOR_PROFILES_PATH, "r", encoding="utf-8") as f:
+                    profiles = [line for line in f.read().splitlines() if line.strip()]
+                if profiles:
+                    result["details"]["apparmor"]["enabled"] = True
+                    result["details"]["apparmor"]["mode"] = "enforced_profiles_loaded"
+                else:
+                    result["details"]["apparmor"]["mode"] = "kernel_interface_present_no_profiles"
+            elif shutil.which("aa-status"):
+                cmd = ["aa-status", "--enabled"]
+                process = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                if process.returncode == 0:
+                    result["details"]["apparmor"]["enabled"] = True
+                    result["details"]["apparmor"]["mode"] = "enabled"
+                else:
+                    result["details"]["apparmor"]["mode"] = "disabled_or_unknown"
+        except (subprocess.SubprocessError, OSError) as e:
+            result["details"]["apparmor"]["mode"] = f"error: {str(e)}"
+
+    selinux_mode = result["details"]["selinux"]["mode"]
+    apparmor_mode = result["details"]["apparmor"]["mode"]
+    selinux_enabled = result["details"]["selinux"]["enabled"]
+    apparmor_enabled = result["details"]["apparmor"]["enabled"]
+
+    if selinux_mode == "enforcing" or apparmor_enabled:
+        result["status"] = "OK"
+        result["message"] = (
+            f"MAC active: SELinux={selinux_mode}, AppArmor={apparmor_mode}"
+        )
+    elif selinux_enabled or result["details"]["apparmor"]["available"]:
+        result["status"] = "WARNING"
+        result["message"] = (
+            f"MAC partially active: SELinux={selinux_mode}, AppArmor={apparmor_mode}"
+        )
+    else:
+        result["status"] = "WARNING"
+        result["message"] = "Neither SELinux nor AppArmor appears to be active"
 
     return result

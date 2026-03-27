@@ -12,7 +12,8 @@ from checks.security import (
     check_file_permissions,
     check_firewall,
     check_fail2ban,
-    check_autostart_permissions
+    check_autostart_permissions,
+    check_mandatory_access_control
 )
 from checks.system import (
     check_python_version, 
@@ -451,3 +452,25 @@ def test_autostart_permissions_detects_world_writable_entries():
         assert "/etc/systemd/system/bad.service" in result["details"]["systemd_world_writable"]
         assert "/etc/cron.d/cron.bad" in result["details"]["cron_world_writable"]
         assert "/etc/cron.bad" in result["details"]["cron_world_writable"]
+        
+def test_mandatory_access_control_selinux_enforcing():
+    def fake_exists(path):
+        return path == "/sys/fs/selinux/enforce"
+
+    with patch("checks.security.os.path.exists", side_effect=fake_exists), \
+         patch("builtins.open", mock_open(read_data="1\n")), \
+         patch("checks.security.shutil.which", return_value=None):
+        result = check_mandatory_access_control()
+
+        assert result["status"] == "OK"
+        assert result["details"]["selinux"]["mode"] == "enforcing"
+        assert result["details"]["selinux"]["enabled"] is True
+
+
+def test_mandatory_access_control_none_active():
+    with patch("checks.security.os.path.exists", return_value=False), \
+         patch("checks.security.shutil.which", return_value=None):
+        result = check_mandatory_access_control()
+
+        assert result["status"] == "WARNING"
+        assert "Neither SELinux nor AppArmor" in result["message"]
