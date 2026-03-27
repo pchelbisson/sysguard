@@ -17,66 +17,70 @@
 
 ### 🟡 Phase 2: Data, Security Baseline & Reporting (Python for DevOps) (Current Stage)
 
-- **`Focus:`** Turn the utility into a policy-driven system checker
-- **`Security Baseline:`**
-  - **✅ `Definitely try:`**
-    - [x] **SSH hardening checks:**
-      - `PermitRootLogin`
-      - `PasswordAuthentication`
-      - Custom SSH port
-    - [x] **File permission checks:**
-      - `/etc/shadow`
-      - `/etc/passwd`
-      - `/root`
-    - [x] **Warning-only checks for root execution**
-  - **🟡 `That would be nice`**
-    - [x] **Firewall status check (ufw / firewalld)**
-    - [x] **fail2ban status**
-    - [x] **Checking autostart and persistence (read-only)**
-    - **SELinux / AppArmor status (read-only)**
-  - **🔵`Optional`**
-    - **Simple secrets detection (regex-based, read-only)**
-- **`JSON Reporting:`**
-  - **✅`Definitely try:`**
-    - **Unified JSON report (machine-readable)**
-    - **stdout → JSON, logs → file/stderr**
-  - **🟡`That would be nice`**
-    - **Report severity levels (ok / warning / critical)**
-- **`Configuration & Secrets Handling:`**
-  - **✅ `Definitely try:`**
-    - Read sensitive values only from environment variables (local only)
-    - No secrets in config.json
-    - Explicit deny-list of keys: `password`, `token`, `secret`, `api_key`.
-  - **Masking sensitive values ​​in logs/reports**
-    - Universal helper `mask_value("abcd1234") -> "ab***34"`.
-  - **🟡 `That would be nice:`**
-    - Validation if required env vars are missing
-- **`Persistence Layer:`** 
-  - **🟡`That would be nice`**
-    - **SQLite DB:**
-      - store execution history
-      - tables: `runs`, `check_results`.
-      - trend analysis (disk, failures)
-  - **🔵`Optional`**
-    - **Aggregation / basic stats**
-    - **CLI trend commands**
-      - `sysguard history --last 20`
-      - `sysguard trend --check disk_root --days 7`.
-    - **Retention policy**
-      - Automatically clear old records (`--retention-days`).
-- **🟡`Automated Alerting:`**
-  - **`That would be nice`**
-    - **Telegram / Webhook alerts on critical failures**
-- **Contract tests for the check-result structure**
-  - **✅ `Definitely try:`**
-    - Every check must return the same schema.
-    - **Configuration tests and edge cases**
-    - Broken JSON, empty lists, invalid thresholds.
-    - **Smoke e2e CLI test**
-    - Minimal run of `main.py check` on a test config.
-- **`Operational Scope:`**
-  - **✅ `Definitely try:`**
-    - Read-only checks only
+- **`Focus:`** turn SysGuard into a predictable policy-driven checker with machine-readable output and safe secret handling.
+
+#### 2.1 Security Baseline (read-only first)
+- **✅ Must have**
+  - [x] SSH hardening checks (`PermitRootLogin`, `PasswordAuthentication`, custom `Port`).
+  - [x] File permission checks (`/etc/shadow`, `/etc/passwd`, `/root`).
+  - [x] Root execution warning (warning-only, not auto-fail).
+- **🟡 Should have**
+  - [x] Firewall status (UFW / firewalld or equivalent fallback).
+  - [x] fail2ban status.
+  - [x] Autostart/persistence hygiene (systemd + cron, read-only).
+  - [x] SELinux / AppArmor status (read-only).
+- **🔵 Could have**
+  - [ ] Simple secrets detection (regex, read-only scan scope only).
+
+#### 2.2 JSON Reporting & Severity Policy
+- **✅ Must have**
+  - [ ] Unified JSON report schema (single contract for every check result).
+  - [ ] `stdout` for JSON only; logs must go to file/stderr.
+- **🟡 Should have**
+  - [ ] Severity model: `ok` / `warning` / `critical`.
+  - [ ] Stable exit-code policy mapped to severity (`0/1/2` or documented equivalent).
+
+#### 2.3 Configuration & Secrets Hygiene
+- **✅ Must have**
+  - [ ] Read sensitive values from environment variables only.
+  - [ ] Keep secrets out of `config.json`.
+  - [ ] Enforce deny-list keys: `password`, `token`, `secret`, `api_key`.
+  - [ ] Implement masking helper and apply it in logs/report payloads.
+- **🟡 Should have**
+  - [ ] Validation for required env vars with clear startup error messages.
+
+#### 2.4 Data Persistence (optional but high value)
+- **🟡 Should have**
+  - [ ] SQLite execution history:
+    - [ ] `runs` table
+    - [ ] `check_results` table
+    - [ ] basic trend queries (disk usage, failures count)
+- **🔵 Could have**
+  - [ ] CLI analytics:
+    - [ ] `sysguard history --last 20`
+    - [ ] `sysguard trend --check disk_root --days 7`
+  - [ ] Retention policy (`--retention-days`).
+
+#### 2.5 Alerting
+- **🟡 Should have**
+  - [ ] Telegram / Webhook notifications on `critical` findings.
+
+#### 2.6 Test & Quality Gates for Phase 2
+- **✅ Must have**
+  - [ ] Contract tests: every check returns the same schema.
+  - [ ] Config tests and edge cases:
+    - [ ] broken JSON
+    - [ ] empty lists
+    - [ ] invalid thresholds/types
+  - [ ] Smoke e2e: minimal `main.py check` on test config in CI.
+- **Operational rule**
+  - [x] Read-only checks only (no mutating system state in Phase 2).
+
+#### Phase 2 Definition of Done (DoD)
+- [ ] JSON output is stable and schema-validated in CI.
+- [ ] Secrets are masked and not stored in config/report/logs in plain text.
+- [ ] Security baseline checks are implemented and covered by tests.
+- [ ] At least one smoke run is executed automatically in CI pipeline.
 
 ### 🟠 Phase 3: Containerization & Automation (DevOps Core)
 - **`Focus:`**
