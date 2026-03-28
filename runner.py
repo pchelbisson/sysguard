@@ -7,7 +7,8 @@ from checks.security import (
     check_firewall,
     check_fail2ban,
     check_autostart_permissions,
-    check_mandatory_access_control
+    check_mandatory_access_control,
+    check_simple_secrets_scan
 )
 
 def run_health_checks(config):
@@ -44,6 +45,7 @@ def run_health_checks(config):
     report.append(check_fail2ban())
     report.append(check_autostart_permissions())
     report.append(check_mandatory_access_control())
+    report.append(check_simple_secrets_scan(config.get("secrets_scan_paths", [])))
     report.append(result)
 
     # Network check

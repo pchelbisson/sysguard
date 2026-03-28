@@ -30,7 +30,7 @@
   - [x] Autostart/persistence hygiene (systemd + cron, read-only).
   - [x] SELinux / AppArmor status (read-only).
 - **🔵 Could have**
-  - [ ] Simple secrets detection (regex, read-only scan scope only).
+  - [x] Simple secrets detection (regex, read-only scan scope only).
 
 #### 2.2 JSON Reporting & Severity Policy
 - **✅ Must have**
@@ -80,7 +80,7 @@
 - [ ] JSON output is stable and schema-validated in CI.
 - [ ] Secrets are masked and not stored in config/report/logs in plain text.
 - [ ] Security baseline checks are implemented and covered by tests.
-- [ ] At least one smoke run is executed automatically in CI pipeline.
+- [ ] At least one smoke run is executed automatically in CI pipeline.a
 
 ### 🟠 Phase 3: Containerization & Automation (DevOps Core)
 - **`Focus:`**

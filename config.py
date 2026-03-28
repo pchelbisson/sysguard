@@ -11,7 +11,8 @@ def load_config(config_path):
         "disk_threshold": 90,
         "check_hosts": ["127.0.0.1"],
         "required_ports": [],
-        "lvm_threshold_gb": 1.0
+        "lvm_threshold_gb": 1.0,
+        "secrets_scan_paths": []
     }
     
     if os.path.exists(config_path):

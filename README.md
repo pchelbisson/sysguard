@@ -46,6 +46,7 @@ SysGuard is designed to practice practical DevOps skills:
 - fail2ban availability/running status.
 - Autostart/persistence hygiene: world-writable entries in systemd/cron paths.
 - SELinux / AppArmor status detection.
+- Simple regex-based secrets detection in configurable read-only paths.
 
 ### Logging & result format
 - Rotating logs + console logs.
@@ -87,13 +88,15 @@ Example:
   "required_ports": [22, 80, 443],
   "check_hosts": ["8.8.8.8"],
   "lvm_threshold_gb": 1.0,
-  "ssh_config_path": "/etc/ssh/sshd_config"
+  "ssh_config_path": "/etc/ssh/sshd_config",
+  "secrets_scan_paths": ["./configs", "./.env"]
 }
 ```
 
 Notes:
 - For network checks, only the first host from `check_hosts` is used currently.
 - `ssh_config_path` is optional; when omitted, SysGuard tries standard `sshd_config` paths
+- `secrets_scan_paths` is optional; when empty, the secrets check returns a warning.
 
 ---
 

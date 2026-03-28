@@ -13,7 +13,8 @@ from checks.security import (
     check_firewall,
     check_fail2ban,
     check_autostart_permissions,
-    check_mandatory_access_control
+    check_mandatory_access_control,
+    check_simple_secrets_scan
 )
 from checks.system import (
     check_python_version, 
@@ -474,3 +475,38 @@ def test_mandatory_access_control_none_active():
 
         assert result["status"] == "WARNING"
         assert "Neither SELinux nor AppArmor" in result["message"]
+        
+def test_simple_secrets_scan_detects_findings(tmp_path):
+    scanned_dir = tmp_path / "scan"
+    scanned_dir.mkdir()
+    secret_file = scanned_dir / "app.env"
+    secret_file.write_text("API_KEY=super-secret-key-123456\n", encoding="utf-8")
+
+    result = check_simple_secrets_scan([str(scanned_dir)])
+
+    assert result["status"] == "WARNING"
+    assert result["details"]["scanned_files"] == 1
+    assert len(result["details"]["findings"]) >= 1
+    assert result["details"]["findings"][0]["pattern"] in {
+        "generic_secret_assignment"
+    }
+
+
+def test_simple_secrets_scan_ok_when_clean(tmp_path):
+    scanned_dir = tmp_path / "scan-clean"
+    scanned_dir.mkdir()
+    clean_file = scanned_dir / "notes.txt"
+    clean_file.write_text("hello world\n", encoding="utf-8")
+
+    result = check_simple_secrets_scan([str(scanned_dir)])
+
+    assert result["status"] == "OK"
+    assert result["details"]["scanned_files"] == 1
+    assert result["details"]["findings"] == []
+
+
+def test_simple_secrets_scan_empty_scope_warning():
+    result = check_simple_secrets_scan([])
+
+    assert result["status"] == "WARNING"
+    assert "scope is empty" in result["message"]

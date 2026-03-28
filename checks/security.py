@@ -62,6 +62,18 @@ APPARMOR_PROFILES_PATH = "/sys/kernel/security/apparmor/profiles"
 SELINUX_ENFORCE_PATH = "/sys/fs/selinux/enforce"
 SELINUX_CONFIG_PATH = "/etc/selinux/config"
 
+MAX_SECRET_FILE_SIZE_BYTES = 1024 * 1024  # 1 MB read limit per file
+
+SECRET_PATTERNS = {
+    "aws_access_key_id": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    "github_token": re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),
+    "slack_token": re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,48}\b"),
+    "private_key_header": re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    "generic_secret_assignment": re.compile(
+        r"(?i)\b(password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*[\"']?[^\s\"']{8,}"
+    ),
+}
+
 
 
 def _check_ufw():
@@ -586,5 +598,92 @@ def check_mandatory_access_control():
     else:
         result["status"] = "WARNING"
         result["message"] = "Neither SELinux nor AppArmor appears to be active"
+
+    return result
+
+def check_simple_secrets_scan(scan_scope=None):
+    """
+    Read-only regex scan for potentially hardcoded secrets in a limited scope.
+    """
+    result = {
+        "check_name": "check_simple_secrets_scan",
+        "status": "OK",
+        "message": "No potential secrets detected in configured scan scope",
+        "details": {
+            "scanned_paths": [],
+            "scanned_files": 0,
+            "findings": [],
+            "skipped_paths": []
+        }
+    }
+
+    if not scan_scope:
+        result["status"] = "WARNING"
+        result["message"] = "Secrets scan scope is empty; configure secrets_scan_paths"
+        return result
+
+    candidate_files = []
+    skipped_paths = []
+
+    for raw_path in scan_scope:
+        path = Path(raw_path).expanduser()
+
+        if not path.exists():
+            skipped_paths.append(f"{raw_path}: not found")
+            continue
+
+        if path.is_file():
+            candidate_files.append(path)
+            continue
+
+        if path.is_dir():
+            for root, _, files in os.walk(path):
+                for file_name in files:
+                    candidate_files.append(Path(root) / file_name)
+            continue
+
+        skipped_paths.append(f"{raw_path}: unsupported path type")
+
+    findings = []
+    scanned_files = 0
+    scanned_paths = []
+
+    for file_path in candidate_files:
+        try:
+            if file_path.stat().st_size > MAX_SECRET_FILE_SIZE_BYTES:
+                skipped_paths.append(f"{file_path}: too large")
+                continue
+        except OSError as e:
+            skipped_paths.append(f"{file_path}: unreadable ({str(e)})")
+            continue
+
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                scanned_files += 1
+                scanned_paths.append(str(file_path))
+                for line_number, line in enumerate(f, start=1):
+                    for pattern_name, pattern in SECRET_PATTERNS.items():
+                        if pattern.search(line):
+                            findings.append({
+                                "path": str(file_path),
+                                "line": line_number,
+                                "pattern": pattern_name
+                            })
+        except OSError as e:
+            skipped_paths.append(f"{file_path}: unreadable ({str(e)})")
+
+    result["details"]["scanned_files"] = scanned_files
+    result["details"]["scanned_paths"] = sorted(set(scanned_paths))
+    result["details"]["skipped_paths"] = skipped_paths
+    result["details"]["findings"] = findings
+
+    if findings:
+        result["status"] = "WARNING"
+        result["message"] = (
+            f"Potential secrets found: {len(findings)} hit(s) in {len(set(f['path'] for f in findings))} file(s)"
+        )
+    elif scanned_files == 0:
+        result["status"] = "WARNING"
+        result["message"] = "Secrets scan did not process any files in the configured scope"
 
     return result
