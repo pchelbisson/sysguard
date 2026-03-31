@@ -11,6 +11,13 @@ from checks.security import (
     check_simple_secrets_scan
 )
 
+from report_schema import normalize_check_result
+
+
+def _run_and_normalize(check_fn, *args, **kwargs):
+    """Execute check function and normalize output into unified schema."""
+    return normalize_check_result(check_fn(*args, **kwargs))
+
 def run_health_checks(config):
     """Centralized launch of all checks."""
     report = []
@@ -22,7 +29,7 @@ def run_health_checks(config):
             path = item.get("path")
             crit = item.get("critical", False)
             
-            res = check_directory(path, crit) if check_type == "directories" else check_mount(path, crit)
+            res = _run_and_normalize(check_directory, path, crit) if check_type == "directories" else _run_and_normalize(check_mount, path, crit)
             report.append(res)
             
             if res.get("data", {}).get("is_critical_failure"):
@@ -30,28 +37,28 @@ def run_health_checks(config):
 
     # Simple checks (drives, system, python)
     for path in config.get("disk_paths", ["/"]):
-        report.append(check_disk(path, threshold=config.get("disk_threshold")))
+        report.append(_run_and_normalize(check_disk, path, threshold=config.get("disk_threshold")))
     
-    report.append(check_python_version())
-    report.append(check_root())
-    report.append(check_systemd())
-    report.append(check_lvm(threshold_gb=config.get("lvm_threshold_gb")))
+    report.append(_run_and_normalize(check_python_version))
+    report.append(_run_and_normalize(check_root))
+    report.append(_run_and_normalize(check_systemd))
+    report.append(_run_and_normalize(check_lvm, threshold_gb=config.get("lvm_threshold_gb")))
     
     ssh_path = config.get("ssh_config_path")  # None или "" → auto-detect
     clean_path = ssh_path if ssh_path else None
-    result = check_ssh_config(clean_path)
-    report.append(check_file_permissions())
-    report.append(check_firewall())
-    report.append(check_fail2ban())
-    report.append(check_autostart_permissions())
-    report.append(check_mandatory_access_control())
-    report.append(check_simple_secrets_scan(config.get("secrets_scan_paths", [])))
+    result = _run_and_normalize(check_ssh_config, clean_path)
+    report.append(_run_and_normalize(check_file_permissions))
+    report.append(_run_and_normalize(check_firewall))
+    report.append(_run_and_normalize(check_fail2ban))
+    report.append(_run_and_normalize(check_autostart_permissions))
+    report.append(_run_and_normalize(check_mandatory_access_control))
+    report.append(_run_and_normalize(check_simple_secrets_scan, config.get("secrets_scan_paths", [])))
     report.append(result)
 
     # Network check
     target_host = config.get("check_hosts", ["127.0.0.1"])[0]
     for port in config.get("required_ports", []):
-        report.append(check_network(target_host, port))
+        report.append(_run_and_normalize(check_network, target_host, port))
         
     return report
 

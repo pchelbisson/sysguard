@@ -51,6 +51,27 @@ SysGuard is designed to practice practical DevOps skills:
 ### Logging & result format
 - Rotating logs + console logs.
 - Each check returns a unified dictionary-like structure for aggregation.
+- Aggregated report now uses a **single JSON contract** for every check result:
+  - `check_name` (string)
+  - `status` (`OK` / `WARNING` / `ERROR`)
+  - `message` (string)
+  - `data` (object with check-specific payload)
+
+Example check result:
+
+```json
+{
+  "check_name": "check_disk",
+  "status": "OK",
+  "message": "Disk space on / is within limits",
+  "data": {
+    "path": "/",
+    "used_gb": 20,
+    "total_gb": 100,
+    "percent": 20.0
+  }
+}
+```
 
 ---
 

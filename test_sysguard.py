@@ -29,6 +29,9 @@ from checks.filesystem import (
     check_lvm
 )
 
+from runner import run_health_checks
+from report_schema import normalize_check_result
+
 
 def test_python_version_is_dict():
     """Checking that the function actually returns a dictionary (basic concept)"""
@@ -510,3 +513,41 @@ def test_simple_secrets_scan_empty_scope_warning():
 
     assert result["status"] == "WARNING"
     assert "scope is empty" in result["message"]
+    
+def test_normalize_check_result_unifies_details_and_status():
+    raw = {
+        "check_name": "legacy_check",
+        "status": "CRITICAL",
+        "message": "legacy critical",
+        "details": {"legacy": True},
+    }
+
+    normalized = normalize_check_result(raw)
+
+    assert set(normalized.keys()) == {"check_name", "status", "message", "data"}
+    assert normalized["status"] == "ERROR"
+    assert normalized["data"] == {"legacy": True}
+
+
+def test_run_health_checks_returns_unified_schema_for_all_results():
+    config = {
+        "directories": [],
+        "mounts": [],
+        "disk_paths": ["/"],
+        "disk_threshold": 95,
+        "required_ports": [],
+        "check_hosts": ["127.0.0.1"],
+        "lvm_threshold_gb": 1.0,
+        "secrets_scan_paths": [],
+    }
+
+    report = run_health_checks(config)
+
+    assert isinstance(report, list)
+    assert report
+    for item in report:
+        assert set(item.keys()) == {"check_name", "status", "message", "data"}
+        assert isinstance(item["check_name"], str)
+        assert item["status"] in {"OK", "WARNING", "ERROR"}
+        assert isinstance(item["message"], str)
+        assert isinstance(item["data"], dict)

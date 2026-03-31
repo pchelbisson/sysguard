@@ -34,7 +34,7 @@
 
 #### 2.2 JSON Reporting & Severity Policy
 - **✅ Must have**
-  - [ ] Unified JSON report schema (single contract for every check result).
+  - [x] Unified JSON report schema (single contract for every check result).
   - [ ] `stdout` for JSON only; logs must go to file/stderr.
 - **🟡 Should have**
   - [ ] Severity model: `ok` / `warning` / `critical`.
