@@ -50,6 +50,7 @@ SysGuard is designed to practice practical DevOps skills:
 
 ### Logging & result format
 - Rotating logs + console logs.
+- Console logs are emitted to `stderr`; file logs are written with rotation.
 - Each check returns a unified dictionary-like structure for aggregation.
 - Aggregated report now uses a **single JSON contract** for every check result:
   - `check_name` (string)
@@ -126,6 +127,16 @@ Notes:
 ```bash
 # Run checks with default config.json
 python3 main.py check
+```
+
+```bash
+# Save machine-readable JSON report to a file (clean terminal output)
+python3 main.py check --output ./reports/latest.json
+```
+
+```bash
+# Hide JSON output in stdout (keep logs in stderr/file)
+python3 main.py check --quiet
 ```
 
 ```bash

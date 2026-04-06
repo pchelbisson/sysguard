@@ -3,6 +3,8 @@ import sys
 import os
 import socket
 import stat
+import json
+import io
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from unittest.mock import patch, mock_open
@@ -31,6 +33,7 @@ from checks.filesystem import (
 
 from runner import run_health_checks
 from report_schema import normalize_check_result
+from main import emit_json_report
 
 
 def test_python_version_is_dict():
@@ -551,3 +554,40 @@ def test_run_health_checks_returns_unified_schema_for_all_results():
         assert item["status"] in {"OK", "WARNING", "ERROR"}
         assert isinstance(item["message"], str)
         assert isinstance(item["data"], dict)
+        
+def test_emit_json_report_writes_stdout_when_default(monkeypatch):
+    fake_stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+
+    emit_json_report([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}])
+
+    parsed = json.loads(fake_stdout.getvalue())
+    assert isinstance(parsed, list)
+    assert parsed[0]["check_name"] == "x"
+
+
+def test_emit_json_report_writes_file_and_suppresses_stdout(tmp_path, monkeypatch):
+    fake_stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+    output_path = tmp_path / "report.json"
+
+    emit_json_report(
+        [{"check_name": "x", "status": "OK", "message": "ok", "data": {}}],
+        output_path=str(output_path),
+    )
+
+    assert fake_stdout.getvalue() == ""
+    parsed = json.loads(output_path.read_text(encoding="utf-8"))
+    assert parsed[0]["status"] == "OK"
+
+
+def test_emit_json_report_quiet_suppresses_stdout(monkeypatch):
+    fake_stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+
+    emit_json_report(
+        [{"check_name": "x", "status": "OK", "message": "ok", "data": {}}],
+        quiet=True,
+    )
+
+    assert fake_stdout.getvalue() == ""

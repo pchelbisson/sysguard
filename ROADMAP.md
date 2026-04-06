@@ -35,10 +35,11 @@
 #### 2.2 JSON Reporting & Severity Policy
 - **✅ Must have**
   - [x] Unified JSON report schema (single contract for every check result).
-  - [ ] `stdout` for JSON only; logs must go to file/stderr.
+  - [x] `stdout` for JSON only; logs must go to file/stderr.
 - **🟡 Should have**
   - [ ] Severity model: `ok` / `warning` / `critical`.
   - [ ] Stable exit-code policy mapped to severity (`0/1/2` or documented equivalent).
+  - [x] CLI output controls for operator UX (`--output`, `--quiet`) without breaking JSON contract.
 
 #### 2.3 Configuration & Secrets Hygiene
 - **✅ Must have**
@@ -75,6 +76,20 @@
   - [ ] Smoke e2e: minimal `main.py check` on test config in CI.
 - **Operational rule**
   - [x] Read-only checks only (no mutating system state in Phase 2).
+
+  #### 2.7 Practical next-iteration priorities (team sync)
+- **Priority 1 — Quality gates first**
+  - [ ] Add config edge-case tests (`broken JSON`, empty lists, invalid types/thresholds) to CI.
+  - [ ] Add smoke e2e run (`main.py check` with minimal test config) as required CI job.
+- **Priority 2 — Policy consistency**
+  - [ ] Finalize severity model (`ok` / `warning` / `critical`) and align check outputs.
+  - [ ] Finalize stable exit-code mapping and document contract (`0/1/2` or equivalent).
+- **Priority 3 — Secrets hygiene hardening**
+  - [ ] Read sensitive values from environment variables only.
+  - [ ] Implement masking helper for logs/report payloads.
+  - [ ] Keep secrets out of static config and enforce deny-list keys.
+- **Codebase simplification (keep behavior unchanged)**
+  - [ ] Extract CLI output/render concerns from `main.py` into a dedicated module for clearer ownership and testing.
 
 #### Phase 2 Definition of Done (DoD)
 - [ ] JSON output is stable and schema-validated in CI.

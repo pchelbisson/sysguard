@@ -1,12 +1,19 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 
 def setup_logging():
-    """Logging setup: file + console."""
+    """Logging setup: file + stderr console.
+
+    Important contract for CLI mode:
+    - stdout is reserved for machine-readable JSON report only;
+    - human-readable logs go to file/stderr.
+    """
     
     # Create a root logger
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)  # We catch EVERYTHING, filtering at the handler level
+    logger.handlers.clear()
     
     # Message format
     formatter = logging.Formatter(
@@ -23,8 +30,8 @@ def setup_logging():
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     
-    # Handler for console (INFO)
-    console_handler = logging.StreamHandler()
+    # Handler for console (INFO) -> stderr to keep stdout JSON-only
+    console_handler = logging.StreamHandler(stream=sys.stderr)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
     
