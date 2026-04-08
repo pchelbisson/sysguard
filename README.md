@@ -55,6 +55,7 @@ SysGuard is designed to practice practical DevOps skills:
 - Aggregated report now uses a **single JSON contract** for every check result:
   - `check_name` (string)
   - `status` (`OK` / `WARNING` / `ERROR`)
+  - `severity` (`ok` / `warning` / `critical`)
   - `message` (string)
   - `data` (object with check-specific payload)
 
@@ -64,6 +65,7 @@ Example check result:
 {
   "check_name": "check_disk",
   "status": "OK",
+  "severity": "ok",
   "message": "Disk space on / is within limits",
   "data": {
     "path": "/",
@@ -78,15 +80,9 @@ Example check result:
 
 ## Exit codes
 
-- `0` — no `ERROR` checks.
-- `1` — one or more checks returned `ERROR` (or critical failure path).
-
----
-
-## Exit codes
-
-- `0` — no `ERROR` checks.
-- `1` — one or more checks returned `ERROR` (or critical failure path).
+- `0` — aggregate severity is `ok`.
+- `1` — aggregate severity is `warning`.
+- `2` — aggregate severity is `critical`.
 
 ---
 

@@ -32,7 +32,7 @@ from checks.filesystem import (
 )
 
 from runner import run_health_checks
-from report_schema import normalize_check_result
+from report_schema import normalize_check_result, get_exit_code_for_report
 from main import emit_json_report
 
 
@@ -527,8 +527,9 @@ def test_normalize_check_result_unifies_details_and_status():
 
     normalized = normalize_check_result(raw)
 
-    assert set(normalized.keys()) == {"check_name", "status", "message", "data"}
+    assert set(normalized.keys()) == {"check_name", "status", "severity", "message", "data"}
     assert normalized["status"] == "ERROR"
+    assert normalized["severity"] == "critical"
     assert normalized["data"] == {"legacy": True}
 
 
@@ -549,11 +550,22 @@ def test_run_health_checks_returns_unified_schema_for_all_results():
     assert isinstance(report, list)
     assert report
     for item in report:
-        assert set(item.keys()) == {"check_name", "status", "message", "data"}
+        assert set(item.keys()) == {"check_name", "status", "severity", "message", "data"}
         assert isinstance(item["check_name"], str)
         assert item["status"] in {"OK", "WARNING", "ERROR"}
+        assert item["severity"] in {"ok", "warning", "critical"}
         assert isinstance(item["message"], str)
         assert isinstance(item["data"], dict)
+        
+def test_exit_code_policy_is_mapped_to_max_severity():
+    report = [
+        {"check_name": "a", "status": "OK", "severity": "ok", "message": "", "data": {}},
+        {"check_name": "b", "status": "WARNING", "severity": "warning", "message": "", "data": {}},
+    ]
+    assert get_exit_code_for_report(report) == 1
+
+    report.append({"check_name": "c", "status": "ERROR", "severity": "critical", "message": "", "data": {}})
+    assert get_exit_code_for_report(report) == 2
         
 def test_emit_json_report_writes_stdout_when_default(monkeypatch):
     fake_stdout = io.StringIO()

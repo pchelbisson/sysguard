@@ -6,6 +6,7 @@ import logging
 from logging_setup import setup_logging 
 from config import load_config
 from runner import run_health_checks, print_summary
+from report_schema import get_exit_code_for_report
 
 def emit_json_report(full_report, output_path=None, quiet=False):
     """Emit machine-readable report according to CLI output options."""
@@ -48,12 +49,11 @@ def main():
         
         full_report = run_health_checks(config)
         
-        success = print_summary(full_report)
+        print_summary(full_report)
         
         emit_json_report(full_report, output_path=args.output, quiet=args.quiet)
         
-        if not success:
-            sys.exit(1)
+        sys.exit(get_exit_code_for_report(full_report))
     else:
         parser.print_help()
         

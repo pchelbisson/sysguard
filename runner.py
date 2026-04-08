@@ -1,5 +1,4 @@
 import logging
-import sys
 from checks import check_disk, check_root, check_python_version, check_network, check_directory, check_mount, check_systemd, check_lvm
 from checks.security import (
     check_ssh_config,
@@ -11,7 +10,7 @@ from checks.security import (
     check_simple_secrets_scan
 )
 
-from report_schema import normalize_check_result
+from report_schema import normalize_check_result, get_report_severity
 
 
 def _run_and_normalize(check_fn, *args, **kwargs):
@@ -22,7 +21,7 @@ def run_health_checks(config):
     """Centralized launch of all checks."""
     report = []
     
-    # Directory and mount checks (with sys.exit logic)
+    # Directory and mount checks
     for check_type in ["directories", "mounts"]:
         items = config.get(check_type, [])
         for item in items:
@@ -32,8 +31,6 @@ def run_health_checks(config):
             res = _run_and_normalize(check_directory, path, crit) if check_type == "directories" else _run_and_normalize(check_mount, path, crit)
             report.append(res)
             
-            if res.get("data", {}).get("is_critical_failure"):
-                sys.exit(1)
 
     # Simple checks (drives, system, python)
     for path in config.get("disk_paths", ["/"]):
@@ -63,25 +60,27 @@ def run_health_checks(config):
     return report
 
 def print_summary(full_report):
-    """Prints a report and returns False if there is an ERROR."""
-    errors = sum(1 for r in full_report if r["status"] == "ERROR")
-    warnings = sum(1 for r in full_report if r["status"] == "WARNING")
+    """Prints summary and returns aggregated report severity."""
+    criticals = sum(1 for r in full_report if r["severity"] == "critical")
+    warnings = sum(1 for r in full_report if r["severity"] == "warning")
 
     logging.info("\n--- SUMMARY REPORT ---")
     for r in full_report:
         level = logging.INFO
-        if r["status"] == "WARNING": level = logging.WARNING
-        if r["status"] == "ERROR": level = logging.ERROR
+        if r["severity"] == "warning":
+            level = logging.WARNING
+        if r["severity"] == "critical":
+            level = logging.ERROR
         
-        logging.log(level, f"{r['check_name']}: {r['message']}")
+        logging.log(level, f"{r['check_name']} [{r['severity']}]: {r['message']}")
 
-    if errors > 0:
-        logging.critical(f"\n--- FAILED: {errors} errors found! ---")
-        return False
-    
-    if warnings > 0:
+    report_severity = get_report_severity(full_report)
+
+    if report_severity == "critical":
+        logging.critical(f"\n--- FAILED: {criticals} critical findings found! ---")
+    elif report_severity == "warning":
         logging.warning(f"\n--- ATTENTION: {warnings} warnings found ---")
     else:
         logging.info("\n--- All checks passed ---")
         
-    return True 
+    return report_severity 

@@ -37,8 +37,8 @@
   - [x] Unified JSON report schema (single contract for every check result).
   - [x] `stdout` for JSON only; logs must go to file/stderr.
 - **🟡 Should have**
-  - [ ] Severity model: `ok` / `warning` / `critical`.
-  - [ ] Stable exit-code policy mapped to severity (`0/1/2` or documented equivalent).
+  - [x] Severity model: `ok` / `warning` / `critical`.
+  - [x] Stable exit-code policy mapped to severity (`0/1/2` or documented equivalent).
   - [x] CLI output controls for operator UX (`--output`, `--quiet`) without breaking JSON contract.
 
 #### 2.3 Configuration & Secrets Hygiene
@@ -82,8 +82,8 @@
   - [ ] Add config edge-case tests (`broken JSON`, empty lists, invalid types/thresholds) to CI.
   - [ ] Add smoke e2e run (`main.py check` with minimal test config) as required CI job.
 - **Priority 2 — Policy consistency**
-  - [ ] Finalize severity model (`ok` / `warning` / `critical`) and align check outputs.
-  - [ ] Finalize stable exit-code mapping and document contract (`0/1/2` or equivalent).
+  - [x] Finalize severity model (`ok` / `warning` / `critical`) and align check outputs.
+  - [x] Finalize stable exit-code mapping and document contract (`0/1/2` or equivalent).
 - **Priority 3 — Secrets hygiene hardening**
   - [ ] Read sensitive values from environment variables only.
   - [ ] Implement masking helper for logs/report payloads.

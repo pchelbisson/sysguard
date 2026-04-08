@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Iterable
 
 
 ALLOWED_STATUSES = {"OK", "WARNING", "ERROR"}
+ALLOWED_SEVERITIES = {"ok", "warning", "critical"}
 STATUS_NORMALIZATION = {
     "INFO": "OK",
     "CRITICAL": "ERROR",
     "UNKNOWN": "WARNING",
 }
+STATUS_TO_SEVERITY = {
+    "OK": "ok",
+    "WARNING": "warning",
+    "ERROR": "critical",
+}
+SEVERITY_ORDER = {"ok": 0, "warning": 1, "critical": 2}
+SEVERITY_TO_EXIT_CODE = {"ok": 0, "warning": 1, "critical": 2}
 
 
 def normalize_check_result(raw_result: Dict[str, Any] | None) -> Dict[str, Any]:
@@ -22,6 +30,9 @@ def normalize_check_result(raw_result: Dict[str, Any] | None) -> Dict[str, Any]:
     status = STATUS_NORMALIZATION.get(raw_status, raw_status)
     if status not in ALLOWED_STATUSES:
         status = "WARNING"
+    severity = STATUS_TO_SEVERITY.get(status, "warning")
+    if severity not in ALLOWED_SEVERITIES:
+        severity = "warning"
 
     message = str(result.get("message") or "")
 
@@ -34,7 +45,25 @@ def normalize_check_result(raw_result: Dict[str, Any] | None) -> Dict[str, Any]:
     normalized = {
         "check_name": check_name,
         "status": status,
+        "severity": severity,
         "message": message,
         "data": data,
     }
     return normalized
+
+def get_report_severity(full_report: Iterable[Dict[str, Any]]) -> str:
+    """Return max severity across normalized check results."""
+    max_severity = "ok"
+    for item in full_report:
+        candidate = str(item.get("severity", "warning")).lower()
+        if candidate not in ALLOWED_SEVERITIES:
+            candidate = "warning"
+        if SEVERITY_ORDER[candidate] > SEVERITY_ORDER[max_severity]:
+            max_severity = candidate
+    return max_severity
+
+
+def get_exit_code_for_report(full_report: Iterable[Dict[str, Any]]) -> int:
+    """Stable exit-code policy mapped to severity: ok=0, warning=1, critical=2."""
+    severity = get_report_severity(full_report)
+    return SEVERITY_TO_EXIT_CODE[severity]
