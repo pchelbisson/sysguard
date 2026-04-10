@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, List
 
 
 ALLOWED_STATUSES = {"OK", "WARNING", "ERROR"}
@@ -19,6 +20,7 @@ STATUS_TO_SEVERITY = {
 }
 SEVERITY_ORDER = {"ok": 0, "warning": 1, "critical": 2}
 SEVERITY_TO_EXIT_CODE = {"ok": 0, "warning": 1, "critical": 2}
+SCHEMA_VERSION = "1.0"
 
 
 def normalize_check_result(raw_result: Dict[str, Any] | None) -> Dict[str, Any]:
@@ -67,3 +69,18 @@ def get_exit_code_for_report(full_report: Iterable[Dict[str, Any]]) -> int:
     """Stable exit-code policy mapped to severity: ok=0, warning=1, critical=2."""
     severity = get_report_severity(full_report)
     return SEVERITY_TO_EXIT_CODE[severity]
+
+def build_report_document(full_report: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build top-level machine-readable report document with explicit schema version."""
+    normalized_results = [normalize_check_result(item) for item in full_report]
+    aggregated_severity = get_report_severity(normalized_results)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "summary": {
+            "severity": aggregated_severity,
+            "exit_code": SEVERITY_TO_EXIT_CODE[aggregated_severity],
+            "checks_total": len(normalized_results),
+        },
+        "results": normalized_results,
+    }

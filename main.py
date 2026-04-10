@@ -6,11 +6,12 @@ import logging
 from logging_setup import setup_logging 
 from config import load_config
 from runner import run_health_checks, print_summary
-from report_schema import get_exit_code_for_report
+from report_schema import build_report_document, get_exit_code_for_report
 
 def emit_json_report(full_report, output_path=None, quiet=False):
     """Emit machine-readable report according to CLI output options."""
-    payload = json.dumps(full_report, ensure_ascii=False)
+    report_document = build_report_document(full_report)
+    payload = json.dumps(report_document, ensure_ascii=False)
 
     if output_path:
         output_file = Path(output_path)

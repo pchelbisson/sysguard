@@ -52,27 +52,43 @@ SysGuard is designed to practice practical DevOps skills:
 - Rotating logs + console logs.
 - Console logs are emitted to `stderr`; file logs are written with rotation.
 - Each check returns a unified dictionary-like structure for aggregation.
-- Aggregated report now uses a **single JSON contract** for every check result:
+- Top-level JSON report contract now includes:
+  - `schema_version` (currently `1.0`)
+  - `generated_at` (UTC ISO-8601 timestamp)
+  - `summary` (`severity`, `exit_code`, `checks_total`)
+  - `results` (array of check results)
+- Each check result uses a **single JSON contract**:
   - `check_name` (string)
   - `status` (`OK` / `WARNING` / `ERROR`)
   - `severity` (`ok` / `warning` / `critical`)
   - `message` (string)
   - `data` (object with check-specific payload)
 
-Example check result:
+Example top-level report:
 
 ```json
 {
-  "check_name": "check_disk",
-  "status": "OK",
-  "severity": "ok",
-  "message": "Disk space on / is within limits",
-  "data": {
-    "path": "/",
-    "used_gb": 20,
-    "total_gb": 100,
-    "percent": 20.0
-  }
+  "schema_version": "1.0",
+  "generated_at": "2026-04-09T12:00:00+00:00",
+  "summary": {
+    "severity": "ok",
+    "exit_code": 0,
+    "checks_total": 1
+  },
+  "results": [
+    {
+      "check_name": "check_disk",
+      "status": "OK",
+      "severity": "ok",
+      "message": "Disk space on / is within limits",
+      "data": {
+        "path": "/",
+        "used_gb": 20,
+        "total_gb": 100,
+        "percent": 20.0
+      }
+    }
+  ]
 }
 ```
 

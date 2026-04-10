@@ -32,7 +32,7 @@ from checks.filesystem import (
 )
 
 from runner import run_health_checks
-from report_schema import normalize_check_result, get_exit_code_for_report
+from report_schema import normalize_check_result, get_exit_code_for_report, build_report_document
 from main import emit_json_report
 
 
@@ -566,6 +566,19 @@ def test_exit_code_policy_is_mapped_to_max_severity():
 
     report.append({"check_name": "c", "status": "ERROR", "severity": "critical", "message": "", "data": {}})
     assert get_exit_code_for_report(report) == 2
+    
+def test_build_report_document_contains_schema_version_and_summary():
+    report = [
+        {"check_name": "x", "status": "OK", "severity": "ok", "message": "ok", "data": {}},
+    ]
+    document = build_report_document(report)
+
+    assert document["schema_version"] == "1.0"
+    assert "generated_at" in document
+    assert document["summary"]["severity"] == "ok"
+    assert document["summary"]["exit_code"] == 0
+    assert document["summary"]["checks_total"] == 1
+    assert document["results"] == report
         
 def test_emit_json_report_writes_stdout_when_default(monkeypatch):
     fake_stdout = io.StringIO()
@@ -574,8 +587,10 @@ def test_emit_json_report_writes_stdout_when_default(monkeypatch):
     emit_json_report([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}])
 
     parsed = json.loads(fake_stdout.getvalue())
-    assert isinstance(parsed, list)
-    assert parsed[0]["check_name"] == "x"
+    assert parsed["schema_version"] == "1.0"
+    assert parsed["summary"]["severity"] == "ok"
+    assert isinstance(parsed["results"], list)
+    assert parsed["results"][0]["check_name"] == "x"
 
 
 def test_emit_json_report_writes_file_and_suppresses_stdout(tmp_path, monkeypatch):
@@ -590,7 +605,8 @@ def test_emit_json_report_writes_file_and_suppresses_stdout(tmp_path, monkeypatc
 
     assert fake_stdout.getvalue() == ""
     parsed = json.loads(output_path.read_text(encoding="utf-8"))
-    assert parsed[0]["status"] == "OK"
+    assert parsed["schema_version"] == "1.0"
+    assert parsed["results"][0]["status"] == "OK"
 
 
 def test_emit_json_report_quiet_suppresses_stdout(monkeypatch):
