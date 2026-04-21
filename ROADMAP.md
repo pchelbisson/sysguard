@@ -77,7 +77,7 @@
 - **Operational rule**
   - [x] Read-only checks only (no mutating system state in Phase 2).
 
-  #### 2.7 Practical next-iteration priorities (team sync)
+#### 2.7 Practical next-iteration priorities (team sync)
 - **Priority 1 — Quality gates first**
   - [ ] Add config edge-case tests (`broken JSON`, empty lists, invalid types/thresholds) to CI.
   - [ ] Add smoke e2e run (`main.py check` with minimal test config) as required CI job.
@@ -170,6 +170,55 @@
 
 `think about how and when to implement`
 - **`Backup Command:`** Implementing the sysguard backup command for a MySQL database using xz compression and archive rotation.
+
+### 🟤 Phase 3.5: Adoption & Product Readiness
+- **`Why here:`** prepare distribution, onboarding, and market-facing packaging **after** core engineering reliability is in place.
+
+#### 3.5.1 Packaging & Editions
+- **✅ Must have**
+  - [ ] Packaging options: `pipx` install, single-binary build, minimal Docker image.
+  - [ ] Clear edition boundaries in docs: Community / Pro / Enterprise scope.
+
+#### 3.5.2 Integration MVP & Pilot Experience
+- **✅ Must have**
+  - [ ] Integration MVP: webhook + Slack/Telegram notifications.
+  - [ ] Customer-facing quickstart for 30-minute pilot on 3–10 hosts.
+- **🟡 Should have**
+  - [ ] CI/CD templates (GitHub Actions, GitLab CI) as reusable onboarding assets.
+
+#### 3.5.3 Policy, Evidence, and ROI Packaging
+- **🟡 Should have**
+  - [ ] Policy packs (starter): Ubuntu baseline, Docker host baseline, SSH hardening.
+  - [ ] Evidence exports: JSON + HTML/PDF audit summary for managers.
+  - [ ] Basic ROI metrics in report (`critical_count`, MTTR proxy, trend delta).
+
+#### 3.5.4 Commercial Extensions (infrastructure-safe track)
+- **✅ Must have**
+  - [ ] CI Pipeline Time Optimizer (phase-1 MVP): analyze CI jobs, detect bottlenecks, provide cache/split/parallelism recommendations.
+- **🟡 Should have**
+  - [ ] Log Cleanup & Cost Saver module (ClickHouse/ELK/Loki): expensive log-source detection + retention optimization + storage savings estimation.
+  - [ ] Uptime + Incident Postmortem Assistant (no PII by design): endpoint checks, incident timeline capture, postmortem draft with action items.
+- **🔵 Could have**
+  - [ ] Billing telemetry hooks for paid feature gating (host count, policy packs, optimizer modules).
+  - [ ] MSP mode (multi-client isolation + workspace model).
+  - [ ] Public benchmark page with anonymized baseline stats (marketing growth loop).
+
+#### 3.5.5 AI Explainability Add-on (optional, user-controlled API key)
+- **🟡 Should have**
+  - [ ] Integrate OpenAI/Anthropic API (opt-in): for each finding return short “why risky + 1-minute fix” guidance.
+  - [ ] Data minimization mode: send only normalized config snippets (never full files / no secrets / no PII).
+  - [ ] Provider abstraction + fallback templates when API is unavailable.
+- **Risk controls**
+  - [ ] Explicit consent toggle (`--ai-explain`), off by default.
+  - [ ] Redaction pipeline before outbound requests.
+  - [ ] Cost guardrails (token budget per run, per-host limits).
+
+#### Phase 3.5 is considered complete when:
+- [ ] A new user can install and run pilot checks in ≤ 30 minutes using quickstart docs.
+- [ ] At least one notification path (webhook or Slack/Telegram) is validated in CI smoke tests.
+- [ ] Community/Pro/Enterprise boundaries are documented and reflected in CLI help/docs.
+- [ ] At least one commercial extension MVP (CI optimizer) is delivering measurable value.
+- [ ] AI explanation feature is opt-in, redacted, and budget-limited by default.
 
 ### 🔴 Phase 4: Infrastructure as Code & Cloud
 - **`Focus:`** Scaling and cloud-native services (Yandex Cloud).
