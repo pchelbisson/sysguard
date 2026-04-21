@@ -43,7 +43,7 @@
 
 #### 2.3 Configuration & Secrets Hygiene
 - **✅ Must have**
-  - [ ] Read sensitive values from environment variables only.
+  - [x] Read sensitive values from environment variables only.
   - [ ] Keep secrets out of `config.json`.
   - [ ] Enforce deny-list keys: `password`, `token`, `secret`, `api_key`.
   - [ ] Implement masking helper and apply it in logs/report payloads.

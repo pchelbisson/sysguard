@@ -123,7 +123,8 @@ Example:
   "check_hosts": ["8.8.8.8"],
   "lvm_threshold_gb": 1.0,
   "ssh_config_path": "/etc/ssh/sshd_config",
-  "secrets_scan_paths": ["./configs", "./.env"]
+  "secrets_scan_paths": ["./configs", "./.env"],
+  "api_key_env": "SYSGUARD_API_KEY"
 }
 ```
 
@@ -131,6 +132,9 @@ Notes:
 - For network checks, only the first host from `check_hosts` is used currently.
 - `ssh_config_path` is optional; when omitted, SysGuard tries standard `sshd_config` paths
 - `secrets_scan_paths` is optional; when empty, the secrets check returns a warning.
+- Sensitive values are loaded from environment variables only via `*_env` keys.
+  Example: `api_key_env: "SYSGUARD_API_KEY"` injects the runtime value into `api_key`.
+  This keeps plaintext credentials out of versioned config files.
 
 ---
 

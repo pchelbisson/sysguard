@@ -34,6 +34,7 @@ from checks.filesystem import (
 from runner import run_health_checks
 from report_schema import normalize_check_result, get_exit_code_for_report, build_report_document
 from main import emit_json_report
+from config import load_config
 
 
 def test_python_version_is_dict():
@@ -270,6 +271,43 @@ def test_ssh_config_good_defaults():
         # But PasswordAuthentication is 'yes' by default, so there will be a WARNING
         assert result["status"] == "WARNING"
         assert "Password authentication is enabled" in result["message"]
+        
+def test_load_config_injects_sensitive_value_from_env(tmp_path, monkeypatch):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "api_key_env": "SYSGUARD_API_KEY",
+                "required_ports": [443]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SYSGUARD_API_KEY", "super-secret-value")
+
+    loaded = load_config(str(config_file))
+
+    assert loaded["api_key"] == "super-secret-value"
+    assert loaded["api_key_env"] == "SYSGUARD_API_KEY"
+    assert loaded["required_ports"] == [443]
+
+
+def test_load_config_skips_missing_sensitive_env(tmp_path, monkeypatch):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "token_env": "SYSGUARD_MISSING_TOKEN"
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("SYSGUARD_MISSING_TOKEN", raising=False)
+
+    loaded = load_config(str(config_file))
+
+    assert "token" not in loaded
+    assert loaded["token_env"] == "SYSGUARD_MISSING_TOKEN"
         
 
 def test_file_permissions_all_ok():
