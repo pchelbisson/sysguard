@@ -3,6 +3,39 @@ import json
 import os
 
 SENSITIVE_ENV_SUFFIX = "_env"
+SENSITIVE_CONFIG_DENYLIST = {"password", "token", "secret", "api_key"}
+
+
+def _collect_plaintext_secret_paths(config, path="root"):
+    """Collect paths of plaintext sensitive keys found in config."""
+    found = []
+    if isinstance(config, dict):
+        for key, value in config.items():
+            current_path = f"{path}.{key}"
+            if (
+                isinstance(key, str)
+                and not key.endswith(SENSITIVE_ENV_SUFFIX)
+                and key.lower() in SENSITIVE_CONFIG_DENYLIST
+            ):
+                found.append(current_path)
+            found.extend(_collect_plaintext_secret_paths(value, current_path))
+    elif isinstance(config, list):
+        for index, item in enumerate(config):
+            found.extend(_collect_plaintext_secret_paths(item, f"{path}[{index}]"))
+    return found
+
+
+def _validate_no_plaintext_secrets(config):
+    """Reject config containing plaintext sensitive keys and report all matches."""
+    found_paths = _collect_plaintext_secret_paths(config)
+    if not found_paths:
+        return
+
+    raise ValueError(
+        "Plaintext sensitive keys are not allowed in config.json: "
+        + ", ".join(found_paths)
+        + f". Use '*{SENSITIVE_ENV_SUFFIX}' keys with environment variable names."
+    )
 
 
 def _inject_sensitive_values_from_env(config):
@@ -58,6 +91,7 @@ def load_config(config_path):
             with open(config_path, 'r') as f:
                 file_data = json.load(f)
                 if isinstance(file_data, dict):
+                    _validate_no_plaintext_secrets(file_data)
                     default_config.update(file_data)
         except Exception as e:
             logging.error(f"Failed to load config: {e}")

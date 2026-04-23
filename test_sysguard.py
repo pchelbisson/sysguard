@@ -308,6 +308,48 @@ def test_load_config_skips_missing_sensitive_env(tmp_path, monkeypatch):
 
     assert "token" not in loaded
     assert loaded["token_env"] == "SYSGUARD_MISSING_TOKEN"
+    
+def test_load_config_rejects_plaintext_sensitive_value(tmp_path, monkeypatch):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "api_key": "plaintext-should-not-be-used",
+                "api_key_env": "SYSGUARD_API_KEY",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SYSGUARD_API_KEY", "env-value")
+
+    loaded = load_config(str(config_file))
+    assert "api_key" not in loaded
+
+
+def test_load_config_reports_all_plaintext_secret_keys(tmp_path, caplog):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "api_key": "x",
+                "nested": {
+                    "token": "y",
+                    "items": [{"secret": "z"}],
+                },
+                "password": "p",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config(str(config_file))
+
+    assert "api_key" not in loaded
+    error_messages = [record.getMessage() for record in caplog.records if record.levelname == "ERROR"]
+    assert any("root.api_key" in msg for msg in error_messages)
+    assert any("root.nested.token" in msg for msg in error_messages)
+    assert any("root.nested.items[0].secret" in msg for msg in error_messages)
+    assert any("root.password" in msg for msg in error_messages)
         
 
 def test_file_permissions_all_ok():

@@ -134,6 +134,8 @@ Notes:
 - `secrets_scan_paths` is optional; when empty, the secrets check returns a warning.
 - Sensitive values are loaded from environment variables only via `*_env` keys.
   Example: `api_key_env: "SYSGUARD_API_KEY"` injects the runtime value into `api_key`.
+  Plaintext keys (`password`, `token`, `secret`, `api_key`) in `config.json` are forbidden.
+  If such keys are present, config loading fails and those values are not used.
   This keeps plaintext credentials out of versioned config files.
 
 ---

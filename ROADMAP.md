@@ -44,8 +44,8 @@
 #### 2.3 Configuration & Secrets Hygiene
 - **✅ Must have**
   - [x] Read sensitive values from environment variables only.
-  - [ ] Keep secrets out of `config.json`.
-  - [ ] Enforce deny-list keys: `password`, `token`, `secret`, `api_key`.
+  - [x] Keep secrets out of `config.json`.
+  - [x] Enforce deny-list keys: `password`, `token`, `secret`, `api_key`.
   - [ ] Implement masking helper and apply it in logs/report payloads.
 - **🟡 Should have**
   - [ ] Validation for required env vars with clear startup error messages.
@@ -76,6 +76,8 @@
   - [ ] Smoke e2e: minimal `main.py check` on test config in CI.
 - **Operational rule**
   - [x] Read-only checks only (no mutating system state in Phase 2).
+- **🔵 Could have**
+  - [ ] Add pre-commit hook (`detect-secrets` or `gitleaks`) for local development.
 
 #### 2.7 Practical next-iteration priorities (team sync)
 - **Priority 1 — Quality gates first**
@@ -90,6 +92,7 @@
   - [ ] Keep secrets out of static config and enforce deny-list keys.
 - **Codebase simplification (keep behavior unchanged)**
   - [ ] Extract CLI output/render concerns from `main.py` into a dedicated module for clearer ownership and testing.
+  - [ ] Introduce structured logging pipeline (`structlog`) with centralized secret redaction processor.
 
 #### Phase 2 Definition of Done (DoD)
 - [ ] JSON output is stable and schema-validated in CI.
