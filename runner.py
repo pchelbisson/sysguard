@@ -11,6 +11,7 @@ from checks.security import (
 )
 
 from report_schema import normalize_check_result, get_report_severity
+from utils import mask_string
 
 
 def _run_and_normalize(check_fn, *args, **kwargs):
@@ -72,7 +73,8 @@ def print_summary(full_report):
         if r["severity"] == "critical":
             level = logging.ERROR
         
-        logging.log(level, f"{r['check_name']} [{r['severity']}]: {r['message']}")
+        safe_message = mask_string(str(r["message"]))
+        logging.log(level, f"{r['check_name']} [{r['severity']}]: {safe_message}")
 
     report_severity = get_report_severity(full_report)
 

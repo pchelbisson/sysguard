@@ -35,6 +35,8 @@ from runner import run_health_checks
 from report_schema import normalize_check_result, get_exit_code_for_report, build_report_document
 from main import emit_json_report
 from config import load_config
+from config import load_config, ConfigValidationError
+from utils import mask_payload, mask_string
 
 
 def test_python_version_is_dict():
@@ -292,7 +294,7 @@ def test_load_config_injects_sensitive_value_from_env(tmp_path, monkeypatch):
     assert loaded["required_ports"] == [443]
 
 
-def test_load_config_skips_missing_sensitive_env(tmp_path, monkeypatch):
+def test_load_config_fails_when_required_sensitive_env_is_missing(tmp_path, monkeypatch):
     config_file = tmp_path / "config.json"
     config_file.write_text(
         json.dumps(
@@ -304,10 +306,9 @@ def test_load_config_skips_missing_sensitive_env(tmp_path, monkeypatch):
     )
     monkeypatch.delenv("SYSGUARD_MISSING_TOKEN", raising=False)
 
-    loaded = load_config(str(config_file))
-
-    assert "token" not in loaded
-    assert loaded["token_env"] == "SYSGUARD_MISSING_TOKEN"
+    with pytest.raises(ConfigValidationError) as exc_info:
+        load_config(str(config_file))
+    assert "SYSGUARD_MISSING_TOKEN" in str(exc_info.value)
     
 def test_load_config_rejects_plaintext_sensitive_value(tmp_path, monkeypatch):
     config_file = tmp_path / "config.json"
@@ -322,11 +323,12 @@ def test_load_config_rejects_plaintext_sensitive_value(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("SYSGUARD_API_KEY", "env-value")
 
-    loaded = load_config(str(config_file))
-    assert "api_key" not in loaded
+    with pytest.raises(ConfigValidationError) as exc_info:
+        load_config(str(config_file))
+    assert "root.api_key" in str(exc_info.value)
 
 
-def test_load_config_reports_all_plaintext_secret_keys(tmp_path, caplog):
+def test_load_config_reports_all_plaintext_secret_keys(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_text(
         json.dumps(
@@ -342,14 +344,29 @@ def test_load_config_reports_all_plaintext_secret_keys(tmp_path, caplog):
         encoding="utf-8",
     )
 
-    loaded = load_config(str(config_file))
+    with pytest.raises(ConfigValidationError) as exc_info:
+        load_config(str(config_file))
 
-    assert "api_key" not in loaded
-    error_messages = [record.getMessage() for record in caplog.records if record.levelname == "ERROR"]
-    assert any("root.api_key" in msg for msg in error_messages)
-    assert any("root.nested.token" in msg for msg in error_messages)
-    assert any("root.nested.items[0].secret" in msg for msg in error_messages)
-    assert any("root.password" in msg for msg in error_messages)
+    message = str(exc_info.value)
+    assert "root.api_key" in message
+    assert "root.nested.token" in message
+    assert "root.nested.items[0].secret" in message
+    assert "root.password" in message
+
+    def test_load_config_fails_for_invalid_env_reference_type(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "api_key_env": 12345
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigValidationError) as exc_info:
+        load_config(str(config_file))
+    assert "expected non-empty env var name string" in str(exc_info.value)
         
 
 def test_file_permissions_all_ok():
@@ -699,3 +716,42 @@ def test_emit_json_report_quiet_suppresses_stdout(monkeypatch):
     )
 
     assert fake_stdout.getvalue() == ""
+    
+def test_emit_json_report_masks_sensitive_fields_in_payload(monkeypatch):
+    fake_stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+
+    emit_json_report(
+        [
+            {
+                "check_name": "x",
+                "status": "OK",
+                "message": "token=super-secret-token-value",
+                "data": {"api_key": "plain-api-key"},
+            }
+        ]
+    )
+
+    parsed = json.loads(fake_stdout.getvalue())
+    assert parsed["results"][0]["data"]["api_key"] == "***MASKED***"
+    assert "***MASKED***" in parsed["results"][0]["message"]
+
+
+def test_mask_string_masks_inline_credentials():
+    masked = mask_string("password=my-password token:abc123456789")
+    assert "my-password" not in masked
+    assert "abc123456789" not in masked
+
+
+def test_mask_payload_masks_sensitive_keys_recursively():
+    payload = {
+        "nested": {
+            "token_value": "secret-token",
+            "safe": "ok",
+            "items": [{"api_key": "123"}],
+        }
+    }
+    masked = mask_payload(payload)
+    assert masked["nested"]["token_value"] == "***MASKED***"
+    assert masked["nested"]["items"][0]["api_key"] == "***MASKED***"
+    assert masked["nested"]["safe"] == "ok"

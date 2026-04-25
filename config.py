@@ -5,6 +5,9 @@ import os
 SENSITIVE_ENV_SUFFIX = "_env"
 SENSITIVE_CONFIG_DENYLIST = {"password", "token", "secret", "api_key"}
 
+class ConfigValidationError(ValueError):
+    """Raised when configuration is syntactically valid but violates policy."""
+
 
 def _collect_plaintext_secret_paths(config, path="root"):
     """Collect paths of plaintext sensitive keys found in config."""
@@ -31,14 +34,14 @@ def _validate_no_plaintext_secrets(config):
     if not found_paths:
         return
 
-    raise ValueError(
+    raise ConfigValidationError(
         "Plaintext sensitive keys are not allowed in config.json: "
         + ", ".join(found_paths)
         + f". Use '*{SENSITIVE_ENV_SUFFIX}' keys with environment variable names."
     )
 
 
-def _inject_sensitive_values_from_env(config):
+def _inject_sensitive_values_from_env(config, path="root"):
     """
     Load sensitive values only from environment variables.
 
@@ -47,16 +50,24 @@ def _inject_sensitive_values_from_env(config):
     - The actual value is injected under the same key name without `_env`.
     - Missing env vars are logged as errors and the target key is not injected.
     """
+    
+    if isinstance(config, list):
+        return [_inject_sensitive_values_from_env(item, f"{path}[{idx}]") for idx, item in enumerate(config)]
     if not isinstance(config, dict):
         return config
 
-    result = dict(config)
+    result = {}
+    errors = []
     for key, value in config.items():
+        current_path = f"{path}.{key}"
+        prepared_value = _inject_sensitive_values_from_env(value, current_path)
+        result[key] = prepared_value
+        
         if not key.endswith(SENSITIVE_ENV_SUFFIX):
             continue
 
         if not isinstance(value, str) or not value.strip():
-            logging.error(f"Invalid env var reference for '{key}': expected non-empty string")
+            errors.append(f"{current_path}: expected non-empty env var name string")
             continue
 
         env_var_name = value.strip()
@@ -64,12 +75,18 @@ def _inject_sensitive_values_from_env(config):
         target_key = key[: -len(SENSITIVE_ENV_SUFFIX)]
 
         if env_value is None:
-            logging.error(
-                f"Environment variable '{env_var_name}' is not set for sensitive key '{target_key}'"
+            errors.append(
+                f"{current_path}: required environment variable '{env_var_name}' is not set"
             )
             continue
 
         result[target_key] = env_value
+        
+    if errors:
+        raise ConfigValidationError(
+            "Configuration requires environment variables that are missing/invalid:\n- "
+            + "\n- ".join(errors)
+        )
 
     return result
 
@@ -93,6 +110,8 @@ def load_config(config_path):
                 if isinstance(file_data, dict):
                     _validate_no_plaintext_secrets(file_data)
                     default_config.update(file_data)
+        except ConfigValidationError:
+            raise
         except Exception as e:
             logging.error(f"Failed to load config: {e}")
     else:

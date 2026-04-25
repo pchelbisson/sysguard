@@ -46,11 +46,11 @@
   - [x] Read sensitive values from environment variables only.
   - [x] Keep secrets out of `config.json`.
   - [x] Enforce deny-list keys: `password`, `token`, `secret`, `api_key`.
-  - [ ] Implement masking helper and apply it in logs/report payloads.
+  - [x] Implement masking helper and apply it in logs/report payloads.
 - **🟡 Should have**
-  - [ ] Validation for required env vars with clear startup error messages.
+  - [x] Validation for required env vars with clear startup error messages.
 
-#### 2.4 Data Persistence (optional but high value)
+#### 2.4 Data Persistence
 - **🟡 Should have**
   - [ ] SQLite execution history:
     - [ ] `runs` table

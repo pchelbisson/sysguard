@@ -4,13 +4,14 @@ import sys
 from pathlib import Path
 import logging
 from logging_setup import setup_logging 
-from config import load_config
+from config import load_config, ConfigValidationError
 from runner import run_health_checks, print_summary
 from report_schema import build_report_document, get_exit_code_for_report
+from utils import mask_payload
 
 def emit_json_report(full_report, output_path=None, quiet=False):
     """Emit machine-readable report according to CLI output options."""
-    report_document = build_report_document(full_report)
+    report_document = mask_payload(build_report_document(full_report))
     payload = json.dumps(report_document, ensure_ascii=False)
 
     if output_path:
@@ -45,7 +46,11 @@ def main():
     args = parser.parse_args()
     
     if args.command == "check":
-        config = load_config(args.config)
+        try:
+            config = load_config(args.config)
+        except ConfigValidationError as exc:
+            logging.critical("Configuration validation failed at startup:\n%s", str(exc))
+            sys.exit(2)
         logging.info("--- Starting Health Check ---")
         
         full_report = run_health_checks(config)
