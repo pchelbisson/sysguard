@@ -52,6 +52,9 @@ SysGuard is designed to practice practical DevOps skills:
 - Rotating logs + console logs.
 - Console logs are emitted to `stderr`; file logs are written with rotation.
 - Each check returns a unified dictionary-like structure for aggregation.
+- SQLite execution history persistence:
+  - each `check` run is saved into `runs` and `check_results` tables,
+  - basic trend query helpers are available for disk usage and failures count.
 - Top-level JSON report contract now includes:
   - `schema_version` (currently `1.0`)
   - `generated_at` (UTC ISO-8601 timestamp)
@@ -124,7 +127,8 @@ Example:
   "lvm_threshold_gb": 1.0,
   "ssh_config_path": "/etc/ssh/sshd_config",
   "secrets_scan_paths": ["./configs", "./.env"],
-  "api_key_env": "SYSGUARD_API_KEY"
+  "api_key_env": "SYSGUARD_API_KEY",
+  "history_db_path": "./data/sysguard_history.db"
 }
 ```
 
@@ -133,6 +137,8 @@ Notes:
 - `ssh_config_path` is optional; when omitted, SysGuard tries standard `sshd_config` paths
 - `secrets_scan_paths` is optional; when empty, the secrets check returns a warning.
 - Sensitive values are loaded from environment variables only via `*_env` keys.
+- `history_db_path` controls where SQLite run history is stored (default: `data/sysguard_history.db`).
+  For security hardening, use a relative path under `data/` with a SQLite extension (`.db`, `.sqlite`, `.sqlite3`).
   Example: `api_key_env: "SYSGUARD_API_KEY"` injects the runtime value into `api_key`.
   Plaintext keys (`password`, `token`, `secret`, `api_key`) in `config.json` are forbidden.
   If such keys are present, config loading fails and those values are not used.

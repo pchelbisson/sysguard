@@ -8,11 +8,12 @@ from config import load_config, ConfigValidationError
 from runner import run_health_checks, print_summary
 from report_schema import build_report_document, get_exit_code_for_report
 from utils import mask_payload
+from persistence import save_run
 
-def emit_json_report(full_report, output_path=None, quiet=False):
+def emit_json_report(report_document, output_path=None, quiet=False):
     """Emit machine-readable report according to CLI output options."""
-    report_document = mask_payload(build_report_document(full_report))
-    payload = json.dumps(report_document, ensure_ascii=False)
+    #report_document = mask_payload(build_report_document(full_report))
+    payload = json.dumps(mask_payload(report_document), ensure_ascii=False)
 
     if output_path:
         output_file = Path(output_path)
@@ -55,9 +56,15 @@ def main():
         
         full_report = run_health_checks(config)
         
+        report_document = build_report_document(full_report)
+        
         print_summary(full_report)
         
-        emit_json_report(full_report, output_path=args.output, quiet=args.quiet)
+        history_db_path = config.get("history_db_path", "data/sysguard_history.db")
+        run_id = save_run(report_document, history_db_path)
+        logging.info("Saved run #%s to SQLite history: %s", run_id, history_db_path)
+        
+        emit_json_report(report_document, output_path=args.output, quiet=args.quiet)
         
         sys.exit(get_exit_code_for_report(full_report))
     else:

@@ -100,7 +100,8 @@ def load_config(config_path):
         "check_hosts": ["127.0.0.1"],
         "required_ports": [],
         "lvm_threshold_gb": 1.0,
-        "secrets_scan_paths": []
+        "secrets_scan_paths": [],
+        "history_db_path": "data/sysguard_history.db"
     }
     
     if os.path.exists(config_path):

@@ -37,6 +37,13 @@ from main import emit_json_report
 from config import load_config
 from config import load_config, ConfigValidationError
 from utils import mask_payload, mask_string
+from persistence import (
+    init_db,
+    save_run,
+    query_disk_usage_trend,
+    query_failures_count_trend,
+    validate_history_db_path,
+)
 
 
 def test_python_version_is_dict():
@@ -353,7 +360,7 @@ def test_load_config_reports_all_plaintext_secret_keys(tmp_path):
     assert "root.nested.items[0].secret" in message
     assert "root.password" in message
 
-    def test_load_config_fails_for_invalid_env_reference_type(tmp_path):
+def test_load_config_fails_for_invalid_env_reference_type(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_text(
         json.dumps(
@@ -681,7 +688,7 @@ def test_emit_json_report_writes_stdout_when_default(monkeypatch):
     fake_stdout = io.StringIO()
     monkeypatch.setattr(sys, "stdout", fake_stdout)
 
-    emit_json_report([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}])
+    emit_json_report(build_report_document([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}]))
 
     parsed = json.loads(fake_stdout.getvalue())
     assert parsed["schema_version"] == "1.0"
@@ -696,7 +703,7 @@ def test_emit_json_report_writes_file_and_suppresses_stdout(tmp_path, monkeypatc
     output_path = tmp_path / "report.json"
 
     emit_json_report(
-        [{"check_name": "x", "status": "OK", "message": "ok", "data": {}}],
+        build_report_document([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}]),
         output_path=str(output_path),
     )
 
@@ -711,7 +718,7 @@ def test_emit_json_report_quiet_suppresses_stdout(monkeypatch):
     monkeypatch.setattr(sys, "stdout", fake_stdout)
 
     emit_json_report(
-        [{"check_name": "x", "status": "OK", "message": "ok", "data": {}}],
+        build_report_document([{"check_name": "x", "status": "OK", "message": "ok", "data": {}}]),
         quiet=True,
     )
 
@@ -722,14 +729,14 @@ def test_emit_json_report_masks_sensitive_fields_in_payload(monkeypatch):
     monkeypatch.setattr(sys, "stdout", fake_stdout)
 
     emit_json_report(
-        [
+        build_report_document([
             {
                 "check_name": "x",
                 "status": "OK",
                 "message": "token=super-secret-token-value",
                 "data": {"api_key": "plain-api-key"},
             }
-        ]
+        ])
     )
 
     parsed = json.loads(fake_stdout.getvalue())
@@ -755,3 +762,80 @@ def test_mask_payload_masks_sensitive_keys_recursively():
     assert masked["nested"]["token_value"] == "***MASKED***"
     assert masked["nested"]["items"][0]["api_key"] == "***MASKED***"
     assert masked["nested"]["safe"] == "ok"
+    
+def test_sqlite_persistence_saves_run_and_results(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db_path = Path("data/history.db")
+    document = build_report_document([
+        {"check_name": "check_disk", "status": "OK", "severity": "ok", "message": "ok", "data": {"path": "/", "percent": 45.5}},
+        {"check_name": "check_root", "status": "WARNING", "severity": "warning", "message": "warn", "data": {}},
+    ])
+
+    init_db(str(db_path))
+    run_id = save_run(document, str(db_path))
+
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    run_row = conn.execute("SELECT id, checks_total FROM runs WHERE id = ?", (run_id,)).fetchone()
+    results_count = conn.execute("SELECT COUNT(*) FROM check_results WHERE run_id = ?", (run_id,)).fetchone()[0]
+
+    assert run_row is not None
+    assert run_row[1] == 2
+    assert results_count == 2
+
+
+def test_sqlite_trend_queries_return_disk_and_failures(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db_path = Path("data/history.db")
+
+    doc1 = build_report_document([
+        {"check_name": "check_disk", "status": "OK", "severity": "ok", "message": "ok", "data": {"path": "/", "percent": 55.0}},
+        {"check_name": "check_firewall", "status": "WARNING", "severity": "warning", "message": "w", "data": {}},
+    ])
+    doc2 = build_report_document([
+        {"check_name": "check_disk", "status": "WARNING", "severity": "warning", "message": "high", "data": {"path": "/", "percent": 88.0}},
+        {"check_name": "check_ssh_config", "status": "ERROR", "severity": "critical", "message": "bad", "data": {}},
+    ])
+
+    save_run(doc1, str(db_path))
+    save_run(doc2, str(db_path))
+
+    disk_trend = query_disk_usage_trend(str(db_path), disk_path="/", days=7)
+    failures_trend = query_failures_count_trend(str(db_path), days=7)
+
+    assert len(disk_trend) == 2
+    assert disk_trend[0]["percent"] == 55.0
+    assert disk_trend[1]["percent"] == 88.0
+    assert failures_trend
+    assert failures_trend[-1]["warnings"] >= 1
+    assert failures_trend[-1]["criticals"] >= 1
+
+
+def test_validate_history_db_path_rejects_absolute_path():
+    with pytest.raises(ValueError):
+        validate_history_db_path("/tmp/sysguard.db")
+
+
+def test_validate_history_db_path_rejects_parent_escape():
+    with pytest.raises(ValueError):
+        validate_history_db_path("../sysguard.db")
+
+
+def test_validate_history_db_path_rejects_non_sqlite_extension():
+    with pytest.raises(ValueError):
+        validate_history_db_path("data/sysguard.txt")
+
+
+def test_validate_history_db_path_accepts_default_data_path():
+    result = validate_history_db_path("data/sysguard_history.db")
+    assert result.name == "sysguard_history.db"
+
+
+def test_init_db_applies_restrictive_file_mode(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db_rel = "data/sysguard_history.db"
+
+    init_db(db_rel)
+
+    mode = stat.S_IMODE((tmp_path / db_rel).stat().st_mode)
+    assert mode == 0o600

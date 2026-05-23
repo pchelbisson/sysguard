@@ -52,10 +52,10 @@
 
 #### 2.4 Data Persistence
 - **🟡 Should have**
-  - [ ] SQLite execution history:
-    - [ ] `runs` table
-    - [ ] `check_results` table
-    - [ ] basic trend queries (disk usage, failures count)
+  - [x] SQLite execution history:
+    - [x] `runs` table
+    - [x] `check_results` table
+    - [x] basic trend queries (disk usage, failures count)
 - **🔵 Could have**
   - [ ] CLI analytics:
     - [ ] `sysguard history --last 20`

@@ -1,0 +1,12 @@
+[tool.bandit]
+exclude_dirs = [
+    ".venv",
+    "venv",
+    "tests",
+    "test_sysguard.py"
+]
+
+skips = ["B101"]
+
+sev_level = "MEDIUM"
+confidence_level = "MEDIUM"
