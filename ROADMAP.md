@@ -31,6 +31,7 @@
   - [x] SELinux / AppArmor status (read-only).
 - **🔵 Could have**
   - [x] Simple secrets detection (regex, read-only scan scope only).
+  - [ ] Package vulnerability check: compare installed package versions against a known CVE feed (e.g., local OSV/NVD snapshot).
 
 #### 2.2 JSON Reporting & Severity Policy
 - **✅ Must have**
