@@ -5,6 +5,7 @@ import stat
 import subprocess
 import shutil
 from pathlib import Path
+
 logger = logging.getLogger("sysguard")
 
 SECURITY_FILE_RULES = [
@@ -13,28 +14,28 @@ SECURITY_FILE_RULES = [
         "expected_mode": ["0640", "0600"],
         "expected_owner": 0,
         "expected_group": 42,  # TODO: implement a check named 'shadow' via grp
-        "critical": True
+        "critical": True,
     },
     {
         "path": "/etc/passwd",
         "expected_mode": ["0644"],
         "expected_owner": 0,
         "expected_group": 0,
-        "critical": True
-    }
+        "critical": True,
+    },
 ]
 
 # Global module constants
 SSH_STANDARD_PATHS = [
-    '/etc/ssh/sshd_config',
-    '/usr/local/etc/ssh/sshd_config',
-    './sshd_config'
+    "/etc/ssh/sshd_config",
+    "/usr/local/etc/ssh/sshd_config",
+    "./sshd_config",
 ]
 
 SSH_DEFAULTS = {
     "PermitRootLogin": "prohibit-password",
     "PasswordAuthentication": "yes",
-    "Port": "22"
+    "Port": "22",
 }
 
 STATUS_PRIORITY = {"OK": 0, "INFO": 0, "WARNING": 1, "ERROR": 2}
@@ -42,7 +43,7 @@ STATUS_PRIORITY = {"OK": 0, "INFO": 0, "WARNING": 1, "ERROR": 2}
 SYSTEMD_UNIT_DIRS = [
     "/etc/systemd/system",
     "/usr/lib/systemd/system",
-    "/lib/systemd/system"
+    "/lib/systemd/system",
 ]
 
 SYSTEMD_UNIT_SUFFIXES = (
@@ -54,7 +55,7 @@ SYSTEMD_UNIT_SUFFIXES = (
     ".mount",
     ".automount",
     ".swap",
-    ".slice"
+    ".slice",
 )
 
 CRON_PATH_GLOB = "/etc/cron*"
@@ -68,12 +69,13 @@ SECRET_PATTERNS = {
     "aws_access_key_id": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "github_token": re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),
     "slack_token": re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,48}\b"),
-    "private_key_header": re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    "private_key_header": re.compile(
+        r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    ),
     "generic_secret_assignment": re.compile(
         r"(?i)\b(password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*[\"']?[^\s\"']{8,}"
     ),
 }
-
 
 
 def _check_ufw():
@@ -82,72 +84,63 @@ def _check_ufw():
     """
     if not shutil.which("ufw"):
         return {"available": False, "active": False, "error": "Not installed"}
-    
+
     # Forming a team
     cmd = ["ufw", "status"]
-    
+
     # If we are not root, we try sudo in non-interactive mode
     if os.geteuid() != 0:
         # -n (non-interactive) prevents password waiting
         cmd = ["sudo", "-n"] + cmd
-    
+
     try:
-        result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
-            timeout=2 
-        )
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+
         if result.returncode != 0:
             # Most likely, sudo asked for a password or access was denied.
-            return {"available": True, "active": False, "error": "Permission denied (sudo required)"}
-            
+            return {
+                "available": True,
+                "active": None,
+                "unsure": True,
+                "error": "Permission denied (sudo required)",
+            }
+
         output = result.stdout.strip()
         return {
-            "available": True, 
-            "active": "Status: active" in output, 
-            "output": output
+            "available": True,
+            "active": "Status: active" in output,
+            "output": output,
         }
-        
+
     except subprocess.TimeoutExpired:
         return {"available": True, "active": False, "error": "Check timed out"}
     except Exception as e:
         return {"available": True, "active": False, "error": str(e)}
-    
+
 
 def _check_iptables():
     """
     Checks iptables status, INPUT policy and rules presence.
     """
     if not shutil.which("iptables"):
-        return {
-            "available": False, 
-            "input_policy": None, 
-            "has_custom_rules": False
-        }
-    
+        return {"available": False, "input_policy": None, "has_custom_rules": False}
+
     # Form a command taking into account the rights (use -n for sudo)
     cmd = ["iptables", "-L", "INPUT", "-n"]
     if os.geteuid() != 0:
         cmd = ["sudo", "-n"] + cmd
-    
+
     try:
-        result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
-            timeout=2
-        )
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+
         if result.returncode != 0:
             return {
-                "available": True, 
-                "input_policy": None, 
+                "available": True,
+                "input_policy": None,
                 "has_custom_rules": False,
-                "error": "Permission denied (sudo -n failed)"
+                "error": "Permission denied (sudo -n failed)",
             }
-        
+
         output = result.stdout.strip()
         if not output:
             return {"available": True, "input_policy": None, "has_custom_rules": False}
@@ -156,7 +149,7 @@ def _check_iptables():
         # Search for the pattern: Chain INPUT (policy ACCEPT)
         policy_match = re.search(r"Chain INPUT \(policy (\w+)\)", output)
         input_policy = policy_match.group(1) if policy_match else None
-        
+
         # 2. Check for the presence of rules
         # The output usually looks like this:
         # Line 1: Chain INPUT (policy ACCEPT)
@@ -164,47 +157,60 @@ def _check_iptables():
         # Line 3+: ... the rules themselves ...
         lines = [line for line in output.split("\n") if line.strip()]
         has_custom_rules = len(lines) > 2
-        
+
         return {
             "available": True,
             "input_policy": input_policy,
             "has_custom_rules": has_custom_rules,
-            "output": output
+            "output": output,
         }
-        
+
     except subprocess.TimeoutExpired:
-        return {"available": True, "input_policy": None, "has_custom_rules": False, "error": "Timeout"}
+        return {
+            "available": True,
+            "input_policy": None,
+            "has_custom_rules": False,
+            "error": "Timeout",
+        }
     except Exception as e:
-        return {"available": True, "input_policy": None, "has_custom_rules": False, "error": str(e)}
+        return {
+            "available": True,
+            "input_policy": None,
+            "has_custom_rules": False,
+            "error": str(e),
+        }
 
 
 def check_ssh_config(config_path_from_json=None):
     res_status = "OK"
     messages = []
-    
+
     def update_status(new_status):
         nonlocal res_status
         if STATUS_PRIORITY[new_status] > STATUS_PRIORITY[res_status]:
             res_status = new_status
 
     # 1. Search for config (Priorities 1 and 2)
-    target_path = config_path_from_json or next((p for p in SSH_STANDARD_PATHS if os.path.exists(p)), None)
-    
+    target_path = config_path_from_json or next(
+        (p for p in SSH_STANDARD_PATHS if os.path.exists(p)), None
+    )
+
     if not target_path:
         return {
             "check_name": "check_ssh_config",
             "status": "ERROR",
             "message": "sshd_config not found",
-            "details": {}
+            "details": {},
         }
 
     # 2. Parsing
     found_settings = {}
     try:
-        with open(target_path, 'r') as f:
+        with open(target_path, "r") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'): continue
+                if not line or line.startswith("#"):
+                    continue
                 parts = line.split(None, 1)
                 if len(parts) == 2:
                     key, val = parts[0].lower(), parts[1].lower()
@@ -213,7 +219,12 @@ def check_ssh_config(config_path_from_json=None):
                         if key == target_key.lower():
                             found_settings[target_key] = val
     except Exception as e:
-        return {"check_name": "check_ssh_config", "status": res_status, "message": str(e), "details": {}}
+        return {
+            "check_name": "check_ssh_config",
+            "status": res_status,
+            "message": str(e),
+            "details": {},
+        }
 
     # Merger: Found Overlaps Defaults
     final_cfg = {**SSH_DEFAULTS, **found_settings}
@@ -225,7 +236,9 @@ def check_ssh_config(config_path_from_json=None):
         messages.append("Root login allowed (yes)")
     elif final_cfg["PermitRootLogin"] not in ["no", "prohibit-password"]:
         update_status("WARNING")
-        messages.append(f"Atypical meaning PermitRootLogin: {final_cfg['PermitRootLogin']}")
+        messages.append(
+            f"Atypical meaning PermitRootLogin: {final_cfg['PermitRootLogin']}"
+        )
 
     # PasswordAuthentication
     if final_cfg["PasswordAuthentication"] == "yes":
@@ -235,13 +248,15 @@ def check_ssh_config(config_path_from_json=None):
     # Port (INFO - does not change status)
     if final_cfg["Port"] == "22":
         # Just a note, don't call update_status
-        pass 
+        pass
 
     return {
         "check_name": "check_ssh_config",
         "status": res_status,
-        "message": ". ".join(messages) if messages else "SSH security settings are fine",
-        "details": final_cfg
+        "message": (
+            ". ".join(messages) if messages else "SSH security settings are fine"
+        ),
+        "details": final_cfg,
     }
 
 
@@ -281,7 +296,9 @@ def check_file_permissions(custom_rules=None):
             actual_gid = st.st_gid
 
             # Let's normalize the expected modes (so that both "600" and "0600" work)
-            expected_modes = [m.replace('0o', '').zfill(4) for m in rule["expected_mode"]]
+            expected_modes = [
+                m.replace("0o", "").zfill(4) for m in rule["expected_mode"]
+            ]
 
             # 1. Checking rights
             if actual_mode not in expected_modes:
@@ -292,7 +309,9 @@ def check_file_permissions(custom_rules=None):
 
             # 2. Owner check (UID 0 is always root)
             if actual_uid != rule["expected_owner"]:
-                update_status("ERROR") # The owner of a system file is not root - this is always an ERROR
+                update_status(
+                    "ERROR"
+                )  # The owner of a system file is not root - this is always an ERROR
                 msg = f"{path}: wrong owner UID {actual_uid}"
                 logger.error(msg)
                 messages.append(msg)
@@ -314,8 +333,9 @@ def check_file_permissions(custom_rules=None):
         "check_name": "check_file_permissions",
         "status": res_status,
         "message": " | ".join(messages) if messages else "Permissions are correct",
-        "details": details
+        "details": details,
     }
+
 
 def check_firewall():
     """
@@ -330,25 +350,32 @@ def check_firewall():
             "active": False,
             "default_incoming": None,
             "has_rules": False,
-            "recommendation": ""
-        }
+            "recommendation": "",
+        },
     }
-    
+
     # 1. Checking UFW (highest priority)
     ufw = _check_ufw()
-    
+
+    if ufw.get("unsure") is True:
+        # Deliberately not falling through to iptables — if we lack privileges
+        # for ufw, we likely lack them for iptables too, and returning UNSURE
+        # early avoids compounding uncertain results.
+        result["status"] = "UNSURE"
+        result["message"] = (
+            "Failed to check UFW — insufficient privileges to execute the command."
+        )
+        return result
+
     if ufw.get("available") and ufw.get("active"):
         result["status"] = "OK"
         result["message"] = "UFW firewall is active"
-        result["details"].update({
-            "backend": "ufw",
-            "active": True
-        })
+        result["details"].update({"backend": "ufw", "active": True})
         return result
 
     # 2. UFW is inactive or unavailable - check iptables
     iptables = _check_iptables()
-    
+
     # If iptables returns a permissions error (for example, sudo -n didn't work)
     if iptables.get("error") == "Permission denied":
         result["status"] = "WARNING"
@@ -364,7 +391,7 @@ def check_firewall():
     result["details"]["backend"] = "iptables"
     result["details"]["default_incoming"] = iptables["input_policy"]
     result["details"]["has_rules"] = iptables["has_custom_rules"]
-    
+
     policy = iptables["input_policy"]
     has_rules = iptables["has_custom_rules"]
 
@@ -378,18 +405,25 @@ def check_firewall():
             result["status"] = "WARNING"
             result["message"] = "iptables policy is ACCEPT, but some rules exist"
             result["details"]["active"] = True
-            result["details"]["recommendation"] = "Consider changing default policy to DROP"
+            result["details"][
+                "recommendation"
+            ] = "Consider changing default policy to DROP"
         else:
             # There are no rules and the policy allows everything - this is a hole (ERROR/WARNING)
             result["status"] = "WARNING"
-            result["message"] = "No active firewall protection detected (Policy: ACCEPT)"
+            result["message"] = (
+                "No active firewall protection detected (Policy: ACCEPT)"
+            )
             result["details"]["active"] = False
-            result["details"]["recommendation"] = "Enable UFW or set iptables INPUT policy to DROP"
+            result["details"][
+                "recommendation"
+            ] = "Enable UFW or set iptables INPUT policy to DROP"
     else:
         result["status"] = "UNKNOWN"
         result["message"] = f"Unexpected iptables policy: {policy}"
 
     return result
+
 
 def check_fail2ban():
     """
@@ -403,8 +437,8 @@ def check_fail2ban():
             "available": False,
             "active": False,
             "backend": "fail2ban-client",
-            "raw_status": ""
-        }
+            "raw_status": "",
+        },
     }
 
     if not shutil.which("fail2ban-client"):
@@ -434,9 +468,14 @@ def check_fail2ban():
     result["details"]["raw_status"] = output
 
     if process.returncode != 0:
-        if "sorry, try again" in output.lower() or "permission denied" in output.lower():
+        if (
+            "sorry, try again" in output.lower()
+            or "permission denied" in output.lower()
+        ):
             result["status"] = "WARNING"
-            result["message"] = "Insufficient permissions to check fail2ban (run with sudo)"
+            result["message"] = (
+                "Insufficient permissions to check fail2ban (run with sudo)"
+            )
         else:
             result["status"] = "WARNING"
             result["message"] = "fail2ban is installed but not running"
@@ -459,10 +498,7 @@ def check_autostart_permissions():
         "check_name": "check_autostart_permissions",
         "status": "OK",
         "message": "No suspicious world-writable autostart files found",
-        "details": {
-            "systemd_world_writable": [],
-            "cron_world_writable": []
-        }
+        "details": {"systemd_world_writable": [], "cron_world_writable": []},
     }
 
     systemd_hits = []
@@ -514,6 +550,7 @@ def check_autostart_permissions():
 
     return result
 
+
 def check_mandatory_access_control():
     """
     Read-only check for host MAC controls (SELinux / AppArmor).
@@ -525,11 +562,13 @@ def check_mandatory_access_control():
         "details": {
             "selinux": {"available": False, "enabled": False, "mode": "unknown"},
             "apparmor": {"available": False, "enabled": False, "mode": "unknown"},
-            "recommendation": "Enable SELinux or AppArmor for stronger host hardening"
-        }
+            "recommendation": "Enable SELinux or AppArmor for stronger host hardening",
+        },
     }
 
-    selinux_available = os.path.exists(SELINUX_ENFORCE_PATH) or os.path.exists(SELINUX_CONFIG_PATH)
+    selinux_available = os.path.exists(SELINUX_ENFORCE_PATH) or os.path.exists(
+        SELINUX_CONFIG_PATH
+    )
     if selinux_available:
         result["details"]["selinux"]["available"] = True
         try:
@@ -557,7 +596,9 @@ def check_mandatory_access_control():
         except OSError as e:
             result["details"]["selinux"]["mode"] = f"error: {str(e)}"
 
-    apparmor_available = os.path.exists(APPARMOR_PROFILES_PATH) or shutil.which("aa-status")
+    apparmor_available = os.path.exists(APPARMOR_PROFILES_PATH) or shutil.which(
+        "aa-status"
+    )
     if apparmor_available:
         result["details"]["apparmor"]["available"] = True
         try:
@@ -568,7 +609,9 @@ def check_mandatory_access_control():
                     result["details"]["apparmor"]["enabled"] = True
                     result["details"]["apparmor"]["mode"] = "enforced_profiles_loaded"
                 else:
-                    result["details"]["apparmor"]["mode"] = "kernel_interface_present_no_profiles"
+                    result["details"]["apparmor"][
+                        "mode"
+                    ] = "kernel_interface_present_no_profiles"
             elif shutil.which("aa-status"):
                 cmd = ["aa-status", "--enabled"]
                 process = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
@@ -601,6 +644,7 @@ def check_mandatory_access_control():
 
     return result
 
+
 def check_simple_secrets_scan(scan_scope=None):
     """
     Read-only regex scan for potentially hardcoded secrets in a limited scope.
@@ -613,8 +657,8 @@ def check_simple_secrets_scan(scan_scope=None):
             "scanned_paths": [],
             "scanned_files": 0,
             "findings": [],
-            "skipped_paths": []
-        }
+            "skipped_paths": [],
+        },
     }
 
     if not scan_scope:
@@ -664,11 +708,13 @@ def check_simple_secrets_scan(scan_scope=None):
                 for line_number, line in enumerate(f, start=1):
                     for pattern_name, pattern in SECRET_PATTERNS.items():
                         if pattern.search(line):
-                            findings.append({
-                                "path": str(file_path),
-                                "line": line_number,
-                                "pattern": pattern_name
-                            })
+                            findings.append(
+                                {
+                                    "path": str(file_path),
+                                    "line": line_number,
+                                    "pattern": pattern_name,
+                                }
+                            )
         except OSError as e:
             skipped_paths.append(f"{file_path}: unreadable ({str(e)})")
 
@@ -684,6 +730,8 @@ def check_simple_secrets_scan(scan_scope=None):
         )
     elif scanned_files == 0:
         result["status"] = "WARNING"
-        result["message"] = "Secrets scan did not process any files in the configured scope"
+        result["message"] = (
+            "Secrets scan did not process any files in the configured scope"
+        )
 
     return result
